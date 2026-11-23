@@ -681,7 +681,148 @@ export function setupDevMock(): void {
     testProxy: () => {
       console.log('[devMock] testProxy', mockProxy)
       return new Promise((r) => setTimeout(() => r({ ok: mockProxy.on && !!mockProxy.url, status: 204 }), 800))
-    }
+    },
+
+    /* 账号与会话（mock）：默认两账号，主账号带口令；「记住我」用 localStorage 模拟本机凭据 */
+    getSession: () => {
+      if (!mockSession.account) {
+        const rid = localStorage.getItem('mozhi-mock-remember')
+        const a = rid ? mockAccounts.find((x) => x.id === rid) : undefined
+        if (a) {
+          mockSession.account = { id: a.id, name: a.name }
+          console.log('[devMock] auto-login (remembered)', mockSession.account)
+        }
+      }
+      return Promise.resolve(
+        mockSession.account
+          ? { mode: 'app', env: false, account: { ...mockSession.account } }
+          : { mode: 'login', env: false, accounts: mockAccounts.map(accView) }
+      )
+    },
+    listAccounts: () => Promise.resolve(mockAccounts.map(accView)),
+    loginAccount: (id: string, password: string, remember: boolean) => {
+      const a = mockAccounts.find((x) => x.id === id)
+      if (!a) return Promise.resolve({ ok: false, error: '账号不存在' })
+      if (a.hasPassword && password !== 'mozhi') return Promise.resolve({ ok: false, error: '口令不正确' })
+      mockSession.account = { id: a.id, name: a.name }
+      if (remember) localStorage.setItem('mozhi-mock-remember', a.id)
+      else localStorage.removeItem('mozhi-mock-remember')
+      console.log('[devMock] login', mockSession.account, 'remember=', remember)
+      return Promise.resolve({ ok: true, account: { ...mockSession.account } })
+    },
+    createAccount: (name: string, password: string, remember: boolean) => {
+      const n = name.trim()
+      if (!n) return Promise.resolve({ ok: false, error: '请填写账号名' })
+      if (mockAccounts.some((x) => x.name === n)) return Promise.resolve({ ok: false, error: '已存在同名账号' })
+      if (password.length < 4) return Promise.resolve({ ok: false, error: '口令至少 4 位' })
+      const a = { id: `mock-${Date.now().toString(36)}`, name: n, hasPassword: true, lastUsedAt: '刚刚', active: false }
+      mockAccounts.push(a)
+      mockSession.account = { id: a.id, name: a.name }
+      if (remember) localStorage.setItem('mozhi-mock-remember', a.id)
+      console.log('[devMock] createAccount', a, 'remember=', remember)
+      return Promise.resolve({ ok: true, account: { ...mockSession.account } })
+    },
+    logout: () => {
+      localStorage.removeItem('mozhi-mock-remember')
+      mockSession.account = null
+      console.log('[devMock] logout')
+      return Promise.resolve({ ok: true })
+    },
+
+    /* 云同步（mock） */
+    getCloudConfig: () => Promise.resolve(mockCloudView()),
+    saveCloudConfig: (patch: Record<string, unknown>) => {
+      const p = patch as {
+        enabled?: boolean
+        provider?: 'webdav' | 's3'
+        webdav?: { url: string; dir: string; username: string }
+        s3?: { endpoint: string; region: string; bucket: string; prefix: string; accessKeyId: string }
+        webdavPassword?: string
+        s3SecretAccessKey?: string
+      }
+      if (p.enabled !== undefined) mockCloud.enabled = p.enabled
+      if (p.provider) mockCloud.provider = p.provider
+      if (p.webdav) mockCloud.webdav = { ...mockCloud.webdav, ...p.webdav }
+      if (p.s3) mockCloud.s3 = { ...mockCloud.s3, ...p.s3 }
+      if (p.webdavPassword) mockCloud.secretStored = true
+      if (p.s3SecretAccessKey) mockCloud.secretStored = true
+      console.log('[devMock] saveCloudConfig', mockCloud)
+      return Promise.resolve(mockCloudView())
+    },
+    testCloud: () =>
+      new Promise((r) =>
+        setTimeout(() => {
+          const ok = mockCloud.provider === 'webdav'
+            ? !!(mockCloud.webdav.url && mockCloud.webdav.username && mockCloud.secretStored)
+            : !!(mockCloud.s3.bucket && mockCloud.s3.accessKeyId && mockCloud.secretStored)
+          r({ ok, message: ok ? '连接成功（模拟）' : '请先完整填写配置与密钥' })
+        }, 700)
+      ),
+    uploadCloud: () =>
+      new Promise((r) =>
+        setTimeout(() => {
+          mockCloudRemote = mockManifest()
+          mockCloud.lastUploadAt = new Date().toISOString()
+          console.log('[devMock] uploadCloud', mockCloudRemote)
+          r({ ok: true, message: '已上传快照（模拟）', manifest: { ...mockCloudRemote } })
+        }, 900)
+      ),
+    downloadCloud: () =>
+      new Promise((r) =>
+        setTimeout(() => {
+          if (!mockCloudRemote) {
+            r({ ok: false, message: '云端暂无快照（先上传一次）', manifest: null })
+            return
+          }
+          mockCloud.lastDownloadAt = new Date().toISOString()
+          r({ ok: true, message: '快照已下载（模拟）', manifest: { ...mockCloudRemote } })
+        }, 800)
+      ),
+    applyCloudRestore: () =>
+      new Promise((r) => {
+        mockShelfListeners.forEach((cb) => cb())
+        r({ ok: true, message: '已恢复（模拟）' })
+      }),
+    discardCloudRestore: () => Promise.resolve(true),
+    cloudRemoteInfo: () =>
+      Promise.resolve(
+        mockCloudRemote
+          ? { exists: true, manifest: { ...mockCloudRemote } }
+          : { exists: false }
+      )
+  }
+}
+
+/* ---------- 账号 / 云同步 mock 状态 ---------- */
+interface MockAccount { id: string; name: string; hasPassword: boolean; lastUsedAt: string; active: boolean }
+const accView = (a: MockAccount) => ({ ...a })
+const mockAccounts: MockAccount[] = [
+  { id: 'main', name: '主账号', hasPassword: true, lastUsedAt: '昨天 21:04', active: false },
+  { id: 'second', name: '书房客', hasPassword: false, lastUsedAt: '11-18 09:12', active: false }
+]
+const mockSession = { account: null as { id: string; name: string } | null }
+const mockCloud = {
+  enabled: false,
+  provider: 'webdav' as 'webdav' | 's3',
+  webdav: { url: '', dir: '墨纸', username: '' },
+  s3: { endpoint: '', region: 'us-east-1', bucket: '', prefix: 'mozhi/', accessKeyId: '' },
+  lastUploadAt: '',
+  lastDownloadAt: '',
+  secretStored: false
+}
+const mockCloudView = () => ({ ...mockCloud, webdav: { ...mockCloud.webdav }, s3: { ...mockCloud.s3 } })
+let mockCloudRemote: ReturnType<typeof mockManifest> | null = null
+function mockManifest() {
+  const s = shelf()
+  return {
+    app: '0.2.0',
+    createdAt: new Date().toISOString(),
+    books: s.books.length,
+    articles: s.articles.length,
+    chapters: s.books.reduce((n, b) => n + (b.totalChapters || 0), 0),
+    sources: s.sources.length,
+    covers: mockCovers.size,
+    zipBytes: 15329894
   }
 }
 

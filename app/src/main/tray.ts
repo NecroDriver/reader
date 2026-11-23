@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { getSetting, setSetting } from './db'
 import { pullAllSources } from './sync'
 import { bossKeyState } from './boss'
+import { getActiveAccount, hasEnvOverride } from './accounts'
 
 let tray: Tray | null = null
 let quitting = false
@@ -43,6 +44,8 @@ export function createTray(getWin: () => BrowserWindow | null): void {
       label: '立即拉取全部',
       click: () => {
         void (async () => {
+          /* 登录页阶段没有账号库，不拉取 */
+          if (!(hasEnvOverride() || getActiveAccount())) return
           const results = await pullAllSources()
           const added = results.filter((r) => r.ok).reduce((n, r) => n + r.added, 0)
           const pad = (n: number): string => String(n).padStart(2, '0')

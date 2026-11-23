@@ -31,6 +31,27 @@ export interface ImportOutcome {
   error?: string
 }
 
+export interface CloudCfgView {
+  enabled: boolean
+  provider: 'webdav' | 's3'
+  webdav: { url: string; dir: string; username: string }
+  s3: { endpoint: string; region: string; bucket: string; prefix: string; accessKeyId: string }
+  lastUploadAt: string
+  lastDownloadAt: string
+  secretStored: boolean
+}
+
+export interface CloudManifestSummary {
+  app: string
+  createdAt: string
+  books: number
+  articles: number
+  chapters: number
+  sources: number
+  covers: number
+  zipBytes: number
+}
+
 const api = {
   getShelf: async () => {
     const s = await ipcRenderer.invoke('library:getShelf')
@@ -229,7 +250,49 @@ const api = {
   /* 网络代理 */
   getProxy: (): Promise<{ on: boolean; url: string }> => ipcRenderer.invoke('proxy:get'),
   saveProxy: (url: string, on: boolean): Promise<boolean> => ipcRenderer.invoke('proxy:save', url, on),
-  testProxy: (): Promise<{ ok: boolean; status?: number; error?: string }> => ipcRenderer.invoke('proxy:test')
+  testProxy: (): Promise<{ ok: boolean; status?: number; error?: string }> => ipcRenderer.invoke('proxy:test'),
+
+  /* 账号与会话（本地多账号，数据隔离） */
+  getSession: (): Promise<
+    | { mode: 'app'; env: boolean; account: { id: string; name: string } | null }
+    | { mode: 'login'; env: false; accounts: { id: string; name: string; hasPassword: boolean; lastUsedAt: string; active: boolean }[] }
+  > => ipcRenderer.invoke('session:current'),
+  listAccounts: (): Promise<
+    { id: string; name: string; hasPassword: boolean; lastUsedAt: string; active: boolean }[]
+  > => ipcRenderer.invoke('accounts:list'),
+  loginAccount: (
+    id: string,
+    password: string,
+    remember: boolean
+  ): Promise<{ ok: true; account: { id: string; name: string } } | { ok: false; error: string }> =>
+    ipcRenderer.invoke('session:login', id, password, remember),
+  createAccount: (
+    name: string,
+    password: string,
+    remember: boolean
+  ): Promise<{ ok: true; account: { id: string; name: string } } | { ok: false; error: string }> =>
+    ipcRenderer.invoke('accounts:create', name, password, remember),
+  logout: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('session:logout'),
+
+  /* 云同步（通用快照：WebDAV / S3 兼容） */
+  getCloudConfig: (): Promise<CloudCfgView> => ipcRenderer.invoke('cloud:getConfig'),
+  saveCloudConfig: (patch: {
+    enabled?: boolean
+    provider?: 'webdav' | 's3'
+    webdav?: { url: string; dir: string; username: string }
+    s3?: { endpoint: string; region: string; bucket: string; prefix: string; accessKeyId: string }
+    webdavPassword?: string
+    s3SecretAccessKey?: string
+  }): Promise<CloudCfgView> => ipcRenderer.invoke('cloud:saveConfig', patch),
+  testCloud: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('cloud:test'),
+  uploadCloud: (): Promise<{ ok: boolean; message: string; manifest?: CloudManifestSummary }> =>
+    ipcRenderer.invoke('cloud:upload'),
+  downloadCloud: (): Promise<{ ok: boolean; message: string; manifest: CloudManifestSummary | null }> =>
+    ipcRenderer.invoke('cloud:download'),
+  applyCloudRestore: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('cloud:applyRestore'),
+  discardCloudRestore: (): Promise<boolean> => ipcRenderer.invoke('cloud:discardRestore'),
+  cloudRemoteInfo: (): Promise<{ exists: boolean; manifest?: CloudManifestSummary; message?: string }> =>
+    ipcRenderer.invoke('cloud:remoteInfo')
 }
 
 export interface NovelJob {

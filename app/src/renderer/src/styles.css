@@ -977,3 +977,99 @@ body.dropping .drop-overlay { display: flex; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* ---------- 启动占位 ---------- */
+.boot-screen {
+  height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: var(--bg); color: var(--ink-2);
+}
+.boot-mark {
+  width: 64px; height: 64px; display: grid; place-items: center;
+  font-family: var(--font-serif); font-size: 34px; color: var(--seal-fg);
+  background: var(--seal); border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.18);
+  animation: sealPulse 1.6s ease-in-out infinite;
+}
+.boot-text { font-size: 13px; letter-spacing: .12em; color: var(--muted); }
+@keyframes sealPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.94); opacity: .82; } }
+
+/* ---------- 登录页（藏书印） ---------- */
+.login-screen {
+  min-height: 100vh; display: grid; place-items: center; padding: 32px 20px;
+  background: var(--bg);
+}
+.login-panel {
+  width: min(460px, 100%); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 36px 34px 26px; box-shadow: 0 6px 28px rgba(30,20,10,.08);
+  display: flex; flex-direction: column; gap: 22px; animation: cardIn .28s var(--ease);
+}
+.login-brand { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.login-mark {
+  width: 52px; height: 52px; display: grid; place-items: center; flex: none;
+  font-family: var(--font-serif); font-size: 28px; color: var(--seal-fg);
+  background: var(--seal); border-radius: 7px;
+}
+.login-brand-text strong { font-family: var(--font-serif); font-size: 22px; letter-spacing: .08em; display: block; }
+.login-latin { font-family: var(--font-latin); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--seal); }
+.login-sub { flex-basis: 100%; margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+
+.seal-row { display: flex; flex-wrap: wrap; gap: 14px; }
+.seal-card {
+  min-width: 104px; padding: 14px 12px 10px; text-align: center; cursor: pointer;
+  border: 1.5px solid var(--seal); border-radius: 6px; background: transparent; color: var(--seal-ink);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  transition: background .15s var(--ease), color .15s var(--ease), box-shadow .15s var(--ease);
+}
+.seal-card:hover, .seal-card:focus-visible { box-shadow: 0 2px 10px rgba(181,64,42,.16); }
+.seal-card.picked { background: var(--seal); color: var(--seal-fg); }
+.seal-name {
+  font-family: var(--font-serif); font-size: 17px; letter-spacing: .1em;
+  writing-mode: vertical-rl; max-height: 118px; line-height: 1.25; overflow: hidden;
+}
+.seal-sub { font-size: 10.5px; letter-spacing: .08em; opacity: .78; }
+.seal-last { margin-top: 4px; font-family: var(--font-latin); font-size: 9.5px; letter-spacing: .1em; color: var(--seal); text-transform: uppercase; opacity: .9; }
+
+.login-form { display: flex; flex-direction: column; gap: 12px; }
+.login-field { display: flex; flex-direction: column; gap: 6px; }
+.login-field label { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.login-field input, .pwd-wrap input {
+  height: 36px; padding: 0 10px; font-size: 13.5px;
+  border: 1px solid var(--line-strong); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.login-field input:focus, .pwd-wrap input:focus { outline: 2px solid var(--seal); outline-offset: -1px; }
+.pwd-wrap { position: relative; }
+.pwd-wrap input { width: 100%; padding-right: 38px; }
+.pwd-toggle {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 30px; height: 28px; display: grid; place-items: center; border: 0; background: none;
+  color: var(--muted); cursor: pointer; border-radius: 4px;
+}
+.pwd-toggle:hover, .pwd-toggle:focus-visible { color: var(--seal); background: var(--seal-soft); }
+.login-submit { margin-top: 2px; }
+.login-hint { font-size: 12.5px; color: var(--muted); }
+.login-check { display: flex; align-items: center; gap: 8px; margin: 2px 0 4px; }
+.login-check input[type='checkbox'] { width: 15px; height: 15px; accent-color: var(--seal); cursor: pointer; }
+.login-check label { font-size: 12.5px; color: var(--ink-2); cursor: pointer; user-select: none; }
+.login-create-btn { align-self: flex-start; }
+.login-create-actions { display: flex; gap: 10px; }
+.login-err { min-height: 18px; font-size: 12.5px; color: var(--seal-ink); font-weight: 600; }
+.login-err:empty { display: none; }
+.login-foot { font-size: 11.5px; line-height: 1.7; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 12px; }
+
+/* ---------- 设置页：云同步 / 账号 ---------- */
+.settings-group h2 .switch { margin-left: auto; }
+.seg.small button { padding: 4px 12px; font-size: 12px; }
+.cloud-test-msg { margin: -6px 0 8px; font-size: 12.5px; }
+.cloud-test-msg.ok { color: #3d6b45; }
+.cloud-test-msg.err { color: var(--seal-ink); }
+.cloud-times { display: block; font-size: 11.5px; }
+.restore-confirm {
+  border: 1px solid var(--seal); border-radius: 6px; background: var(--seal-soft);
+  padding: 14px; display: flex; flex-direction: column; gap: 10px; animation: cardIn .22s var(--ease);
+}
+.restore-confirm strong { font-size: 13.5px; color: var(--seal-ink); }
+.restore-confirm p { font-size: 12.5px; line-height: 1.7; color: var(--ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-mark { animation: none; }
+  .login-panel, .restore-confirm { animation: none; }
+}

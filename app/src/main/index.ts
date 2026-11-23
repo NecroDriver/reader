@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { copyFileSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { initUserData, getDataDirInfo, setCustomDataDir } from './bootstrap'
+import { initUserData, defaultDataDir } from './bootstrap'
 import { initBossKey, registerBossIpc } from './boss'
 import { getLogDir, logEvent } from './logger'
 import {
@@ -45,7 +45,8 @@ import {
   upsertNovelPullLog,
   markStaleNovelLogs,
   dropNovelPullLog,
-  getBookTitleById
+  getBookTitleById,
+  closeDb
 } from './db'
 import { pullSource, pullAllSources, setSyncProgressSink, startScheduler, stopScheduler } from './sync'
 import { parseTocPages, writeTxtFile } from './novel'
@@ -65,12 +66,58 @@ import {
   markQuitting,
   registerSettingsIpc
 } from './tray'
+import {
+  activateAccount,
+  clearRemember,
+  createAndActivate,
+  deactivateAccount,
+  getActiveAccount,
+  getAccountDataDir,
+  listAccounts,
+  setAccountDataDir,
+  startupSession,
+  writeRemember
+} from './accounts'
+import {
+  applyPendingRestore,
+  discardPendingRestore,
+  downloadSnapshot,
+  getCloudConfigView,
+  rememberPendingRestore,
+  remoteInfo,
+  setCloudConfig,
+  testCloudConnection,
+  uploadSnapshot
+} from './cloudSync'
+import { resetNovelJobs } from './novelJob'
 
 let mainWindow: BrowserWindow | null = null
 
-/* 数据目录引导：dev 自动用 -dev 后缀目录，配置了自定义目录则重定向（含数据库迁移）。
-   必须在单实例锁与任何 db 访问之前执行。 */
-initUserData()
+/* 账号体系引导（替代旧 initUserData 单用户引导）：
+   - MOZHI_DATA_DIR 直通（自动化测试），行为与旧版一致；
+   - 注册表里有最近账号，且（无口令 或 本机留有「记住我」凭据）→ 自动进入；
+   - 否则停在基座目录（不碰任何账号库），渲染层展示登录页，session:login 后再进入。 */
+type BootMode = { mode: 'env' } | { mode: 'login' } | { mode: 'auto'; account: { id: string; name: string } }
+const bootSession: BootMode = (() => {
+  const s = startupSession()
+  if (s.mode === 'env') {
+    initUserData()
+    return { mode: 'env' }
+  }
+  if (s.mode === 'auto' && !process.env.MOZHI_ACCT_TEST) {
+    const err = activateAccount(s.account.id, s.rememberedPassword ?? '')
+    if (err === null) return { mode: 'auto', account: { id: s.account.id, name: s.account.name } }
+    /* 自动进入失败（目录被删等）→ 落到登录页人工处理 */
+  }
+  return { mode: 'login' }
+})()
+
+/** 当前是否有可用会话（env 或已登录）——决定 db 依赖操作是否放行 */
+let sessionActive = bootSession.mode !== 'login'
+
+function requireSession(): void {
+  if (!sessionActive) throw new Error('请先登录账号')
+}
 
 /* 单实例锁：必须尽早调用。抢不到时先不退出——见下方 whenReady 前的轮询接管逻辑 */
 let gotLock = app.requestSingleInstanceLock()
@@ -299,7 +346,11 @@ void (async (): Promise<void> => {
     win?.webContents.send('shelf:changed')
     return true
   })
-  ipcMain.handle('data:getDirInfo', () => getDataDirInfo())
+  ipcMain.handle('data:getDirInfo', () => ({
+    current: app.getPath('userData'),
+    defaultDir: defaultDataDir(),
+    custom: getAccountDataDir()
+  }))
   ipcMain.handle('data:pickAndSetDir', async () => {
     const win = BrowserWindow.getAllWindows()[0]
     const r = await dialog.showOpenDialog(win!, {
@@ -307,11 +358,11 @@ void (async (): Promise<void> => {
       properties: ['openDirectory']
     })
     if (r.canceled || !r.filePaths[0]) return { canceled: true } as const
-    setCustomDataDir(r.filePaths[0])
+    setAccountDataDir(r.filePaths[0])
     return { canceled: false, dir: r.filePaths[0] } as const
   })
   ipcMain.handle('data:resetDir', () => {
-    setCustomDataDir(null)
+    setAccountDataDir(null)
     return true
   })
 
@@ -320,7 +371,7 @@ void (async (): Promise<void> => {
   ipcMain.handle('logs:openDir', () => shell.openPath(getLogDir()))
 
   /* ---------- 在线小说 ---------- */
-  markStaleNovelLogs() // 上次异常退出时残留的 running 条目 → 标记中断
+  if (sessionActive) markStaleNovelLogs() // 上次异常退出时残留的 running 条目 → 标记中断（登录后同样补跑）
   setNovelDb({
     getNovelSource: (bookId) => {
       const r = getNovelSource(bookId)
@@ -471,7 +522,7 @@ void (async (): Promise<void> => {
       session.defaultSession.setProxy({ mode: 'system' }).catch(() => undefined)
     }
   }
-  applyProxy()
+  if (sessionActive) applyProxy()
   ipcMain.handle('proxy:get', () => ({
     on: boolSetting('proxy_on', false),
     url: getSetting('proxy_url') ?? ''
@@ -493,13 +544,111 @@ void (async (): Promise<void> => {
     }
   })
 
+  /* ---------- 账号与会话 ---------- */
+  const onSessionReady = (): void => {
+    applyProxy()
+    markStaleNovelLogs()
+    startScheduler(boolSetting('pull_on_start', true))
+    const a = getActiveAccount()
+    logEvent('app', 'info', `已进入账号「${a?.name ?? 'env'}」（v${app.getVersion()}，数据目录 ${app.getPath('userData')}）`)
+  }
+  const teardownSession = (): void => {
+    stopScheduler()
+    resetNovelJobs()
+    closeDb()
+    deactivateAccount()
+    sessionActive = false
+    logEvent('app', 'info', '已退出账号，回到登录页')
+  }
+
+  ipcMain.handle('session:current', () => {
+    if (bootSession.mode === 'env' || sessionActive) {
+      const a = getActiveAccount()
+      return { mode: 'app' as const, env: bootSession.mode === 'env', account: a ? { id: a.id, name: a.name } : null }
+    }
+    return { mode: 'login' as const, env: false, accounts: listAccounts() }
+  })
+  ipcMain.handle('accounts:list', () => listAccounts())
+  ipcMain.handle('session:login', (_e, id: string, password: string, remember: boolean) => {
+    const err = activateAccount(id, password ?? '')
+    if (err) return { ok: false as const, error: err }
+    if (remember) writeRemember(id, password ?? '')
+    else clearRemember(id)
+    sessionActive = true
+    onSessionReady()
+    const a = getActiveAccount()
+    return { ok: true as const, account: { id: a?.id ?? '', name: a?.name ?? '' } }
+  })
+  ipcMain.handle('accounts:create', (_e, name: string, password: string, remember: boolean) => {
+    const err = createAndActivate(name, password ?? '')
+    if (err) return { ok: false as const, error: err }
+    if (remember) writeRemember(getActiveAccount()?.id ?? '', password ?? '')
+    sessionActive = true
+    onSessionReady()
+    const a = getActiveAccount()
+    return { ok: true as const, account: { id: a?.id ?? '', name: a?.name ?? '' } }
+  })
+  ipcMain.handle('session:logout', () => {
+    /* 退出登录同时撤销本机自动登录凭据（下次启动回登录页） */
+    clearRemember(getActiveAccount()?.id ?? '')
+    teardownSession()
+    return { ok: true as const }
+  })
+
+  /* ---------- 云同步（快照上传 / 云端恢复，全部手动触发） ---------- */
+  ipcMain.handle('cloud:getConfig', () => {
+    requireSession()
+    return getCloudConfigView()
+  })
+  ipcMain.handle('cloud:saveConfig', (_e, patch: Parameters<typeof setCloudConfig>[0]) => {
+    requireSession()
+    setCloudConfig(patch)
+    return getCloudConfigView()
+  })
+  ipcMain.handle('cloud:test', () => {
+    requireSession()
+    return testCloudConnection()
+  })
+  ipcMain.handle('cloud:upload', async () => {
+    requireSession()
+    return uploadSnapshot()
+  })
+  ipcMain.handle('cloud:download', async () => {
+    requireSession()
+    const r = await downloadSnapshot()
+    if (r.ok && r.snapshot) rememberPendingRestore(r.snapshot)
+    /* 只把摘要给渲染层，zip 留在主进程待确认 */
+    return { ok: r.ok, message: r.message, manifest: r.snapshot?.manifest ?? null }
+  })
+  ipcMain.handle('cloud:applyRestore', () => {
+    requireSession()
+    resetNovelJobs() /* 恢复换库，旧抓取作业全部作废 */
+    const r = applyPendingRestore()
+    if (r.ok) shelfChanged()
+    return r
+  })
+  ipcMain.handle('cloud:discardRestore', () => {
+    discardPendingRestore()
+    return true
+  })
+  ipcMain.handle('cloud:remoteInfo', () => {
+    requireSession()
+    return remoteInfo()
+  })
+
   createWindow()
   createTray(() => mainWindow)
 
-  logEvent('app', 'info', `墨纸启动完成（v${app.getVersion()}，数据目录 ${app.getPath('userData')}）`)
+  logEvent(
+    'app',
+    'info',
+    bootSession.mode === 'login'
+      ? `墨纸启动完成（v${app.getVersion()}，等待登录）`
+      : `墨纸启动完成（v${app.getVersion()}，数据目录 ${app.getPath('userData')}）`
+  )
 
-  // 调度器常开（到点拉取各源间隔），“启动时立即拉取首轮”受设置控制
-  startScheduler(boolSetting('pull_on_start', true))
+  // 已登录（或 env 直通）：调度器常开，“启动时立即拉取首轮”受设置控制；登录页阶段不启动
+  if (sessionActive) startScheduler(boolSetting('pull_on_start', true))
 
   /* 老板键：全局一键隐藏/恢复；支持自定义（存 settings 表），默认回退链 */
   initBossKey(() => mainWindow)
@@ -520,5 +669,5 @@ app.on('window-all-closed', () => {
   // close_to_tray=true 时 close 已被拦截，不会走到这里；走到即用户选择退出或托盘退出
   stopScheduler()
   destroyTray()
-  if (!boolSetting('close_to_tray', true)) app.quit()
+  if (!sessionActive || !boolSetting('close_to_tray', true)) app.quit()
 })

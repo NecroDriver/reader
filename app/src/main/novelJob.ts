@@ -17,6 +17,13 @@ export interface NovelJobState {
 const jobs = new Map<number, NovelJobState>()
 const pauseFlags = new Set<number>()
 
+/** 全部作业作废（账号退出 / 云恢复换库前调用）：先暂停再清空 */
+export function resetNovelJobs(): void {
+  for (const id of jobs.keys()) pauseNovel(id)
+  jobs.clear()
+  pauseFlags.clear()
+}
+
 export function getJob(bookId: number): NovelJobState {
   return jobs.get(bookId) ?? { bookId, status: 'idle', done: 0, total: 0, currentTitle: '' }
 }

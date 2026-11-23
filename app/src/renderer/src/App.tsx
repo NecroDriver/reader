@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import ReaderView from './ReaderView'
 import ArticleView from './ArticleView'
 import BookDetailModal, { coverSrc } from './BookDetailModal'
+import LoginScreen from './LoginScreen'
+import CloudSyncPanel from './CloudSyncPanel'
 import { setupDevMock } from './devMock'
 import type { Book, ImportOutcome, NovelJobState, PullLogEntry, PullOutcome, Shelf, SyncProgress, ViewName } from './types'
 
@@ -53,7 +55,7 @@ const ExpandIcon = (
   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M8 5.5 12.5 10 8 14.5M4 5.5 8.5 10 4 14.5" /></svg>
 )
 
-export default function App() {
+function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
   const [view, setView] = useState<ViewName>('shelf')
   const [filter, setFilter] = useState<Filter>('all')
   const [shelf, setShelf] = useState<Shelf | null>(null)
@@ -96,6 +98,14 @@ export default function App() {
   const [menuBookId, setMenuBookId] = useState<number | null>(null)
   const [confirmDelId, setConfirmDelId] = useState<number | null>(null)
   const [detailBookId, setDetailBookId] = useState<number | null>(null)
+  /* 当前账号（设置页展示；env 直通为 null） */
+  const [accountName, setAccountName] = useState<string | null>(null)
+  useEffect(() => {
+    void (async () => {
+      const s = await window.mozhi?.getSession()
+      if (s && s.mode === 'app') setAccountName(s.account?.name ?? null)
+    })()
+  }, [])
 
   /* 老板键录制：capture 阶段捕获组合键，Esc 取消 */
   useEffect(() => {
@@ -1014,6 +1024,32 @@ export default function App() {
             </header>
             <div className="settings-groups">
               <div className="settings-group">
+                <h2>账号</h2>
+                <div className="setting-row">
+                  <div className="setting-info">
+                    <strong>当前账号</strong>
+                    <span className="mono-path">{accountName ?? '环境直通（开发模式）'}</span>
+                  </div>
+                  {accountName && (
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => {
+                        void (async () => {
+                          await window.mozhi?.logout()
+                          onLogout()
+                        })()
+                      }}
+                    >
+                      退出登录
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <CloudSyncPanel onChanged={(m) => pushToast(m)} />
+
+              <div className="settings-group">
                 <h2>外观</h2>
                 <div className="theme-row">
                   {([['paper', '纸'], ['sepia', '暖'], ['green', '绿'], ['ink', '墨']] as const).map(([t, label]) => (
@@ -1272,4 +1308,45 @@ export default function App() {
       </div>
     </div>
   )
+}
+
+type SessionState = 'boot' | 'login' | 'app'
+
+/**
+ * 会话门：主进程给出当前会话（env 直通 / 已激活账号 → 直接进书架；否则登录页）。
+ * 退出登录回到登录页（LibraryAppInner 卸载，全部状态自然丢弃）。
+ */
+export default function App() {
+  const [session, setSession] = useState<SessionState>('boot')
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      if (!window.mozhi && import.meta.env.DEV) setupDevMock()
+      const m = window.mozhi
+      if (!m) {
+        setSession('app') /* 理论不可达：无 preload 时 DEV mock 已补齐 */
+        return
+      }
+      const s = await m.getSession()
+      if (!alive) return
+      setSession(s.mode === 'app' ? 'app' : 'login')
+    })()
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  if (session === 'boot') {
+    return (
+      <div className="boot-screen" aria-busy="true">
+        <span className="boot-mark">墨</span>
+        <span className="boot-text">正在展开书卷…</span>
+      </div>
+    )
+  }
+  if (session === 'login') {
+    return <LoginScreen onDone={() => setSession('app')} />
+  }
+  return <LibraryAppInner onLogout={() => setSession('login')} />
 }

@@ -54,6 +54,28 @@ export interface Shelf {
 
 let db: Database.Database | null = null
 
+/** 演示种子策略：新账号空库跳过（'none'），默认/环境覆盖模式保留演示数据（'demo'） */
+let seedPolicy: 'demo' | 'none' = 'demo'
+export function setSeedPolicy(p: 'demo' | 'none'): void {
+  seedPolicy = p
+}
+
+/** 关闭当前库（账号切换 / 云恢复前调用）：折叠 WAL 再关，句柄置空待重开 */
+export function closeDb(): void {
+  if (!db) return
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)')
+  } catch {
+    /* checkpoint 失败也要尝试关闭 */
+  }
+  try {
+    db.close()
+  } catch {
+    /* 已关闭 */
+  }
+  db = null
+}
+
 export function getDb(): Database.Database {
   if (db) return db
   db = new Database(join(app.getPath('userData'), 'mozhi.db'))
@@ -97,7 +119,7 @@ export function getDb(): Database.Database {
     );
   `)
   migrate(db)
-  seedIfEmpty(db)
+  if (seedPolicy === 'demo') seedIfEmpty(db)
   return db
 }
 
