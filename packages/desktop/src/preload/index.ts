@@ -292,7 +292,35 @@ const api = {
   applyCloudRestore: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('cloud:applyRestore'),
   discardCloudRestore: (): Promise<boolean> => ipcRenderer.invoke('cloud:discardRestore'),
   cloudRemoteInfo: (): Promise<{ exists: boolean; manifest?: CloudManifestSummary; message?: string }> =>
-    ipcRenderer.invoke('cloud:remoteInfo')
+    ipcRenderer.invoke('cloud:remoteInfo'),
+  fetchPhoneProgress: (): Promise<{ ok: boolean; progress?: PhoneProgressView; message?: string }> =>
+    ipcRenderer.invoke('cloud:phoneProgress'),
+  applyPhoneProgress: (
+    picks: PhoneProgressPick[]
+  ): Promise<{ applied: number; missing: number }> =>
+    ipcRenderer.invoke('cloud:applyPhoneProgress', picks)
+}
+
+export interface PhoneProgressEntryView {
+  bookId: number
+  title: string
+  progress: number
+  currentChapter: number
+  chapterLabel: string
+}
+
+export interface PhoneProgressView {
+  app: string
+  deviceId: string
+  generatedAt: string
+  entries: PhoneProgressEntryView[]
+}
+
+export interface PhoneProgressPick {
+  bookId: number
+  progress: number
+  currentChapter: number
+  chapterLabel: string
 }
 
 export interface NovelJob {

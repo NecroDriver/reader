@@ -86,6 +86,26 @@ export async function saveAppliedInfo(info: AppliedInfo): Promise<void> {
   )
 }
 
+/** 通用键值（device_id / progress_uploaded_at 等小状态） */
+export async function getCfgValue(key: string): Promise<string | null> {
+  try {
+    const db = await cfgDb()
+    const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM cfg WHERE key = ?', key)
+    return row?.value ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function setCfgValue(key: string, value: string): Promise<void> {
+  const db = await cfgDb()
+  await db.runAsync(
+    'INSERT INTO cfg (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    key,
+    value
+  )
+}
+
 /** Basic 认证头；RN 与 web 都有 btoa（SDK 58 内置） */
 export function basicAuth(cfg: CloudConfig): string {
   if (Platform.OS === 'web') {

@@ -29,6 +29,23 @@ const UpIcon = (
 const DownIcon = (
   <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M10 5v10M5.5 10.5 10 15l4.5-4.5" /></svg>
 )
+const PhoneIcon = (
+  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2.5" width="8" height="15" rx="1.5" /><path d="M9 15h2" /></svg>
+)
+
+interface PhoneEntryView {
+  bookId: number
+  title: string
+  progress: number
+  currentChapter: number
+  chapterLabel: string
+}
+interface PhoneProgressView {
+  app: string
+  deviceId: string
+  generatedAt: string
+  entries: PhoneEntryView[]
+}
 
 const fmtBytes = (n: number): string => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
 const fmtTime = (iso: string): string => {
@@ -60,6 +77,9 @@ export default function CloudSyncPanel({
   const [applying, setApplying] = useState(false)
   const [pending, setPending] = useState<ManifestSummary | null>(null)
   const [remote, setRemote] = useState<{ state: 'idle' | 'loading' | 'none' | 'ok' | 'err'; m?: ManifestSummary; msg?: string }>({ state: 'idle' })
+  const [phone, setPhone] = useState<{ state: 'idle' | 'loading' | 'none' | 'err' | 'ok'; p?: PhoneProgressView; msg?: string }>({ state: 'idle' })
+  const [phonePicks, setPhonePicks] = useState<Set<number>>(new Set())
+  const [applyingPhone, setApplyingPhone] = useState(false)
 
   const loadAll = (quiet = false): void => {
     void (async () => {
@@ -163,6 +183,52 @@ export default function CloudSyncPanel({
     void window.mozhi.discardCloudRestore()
     setPending(null)
     onChanged?.('已放弃本次恢复')
+  }
+
+  /* ── 手机进度 ── */
+  const checkPhone = (): void => {
+    setPhone({ state: 'loading' })
+    void (async () => {
+      const r = await window.mozhi.fetchPhoneProgress()
+      if (!r.ok) {
+        setPhone({ state: 'err', msg: r.message || '读取失败' })
+        return
+      }
+      if (!r.progress) {
+        setPhone({ state: 'none' })
+        return
+      }
+      setPhone({ state: 'ok', p: r.progress })
+      setPhonePicks(new Set(r.progress.entries.map((e) => e.bookId)))
+    })()
+  }
+
+  const togglePick = (id: number): void => {
+    setPhonePicks((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const applyPhone = (): void => {
+    const p = phone.p
+    if (!p) return
+    setApplyingPhone(true)
+    void (async () => {
+      const picks = p.entries
+        .filter((e) => phonePicks.has(e.bookId))
+        .map((e) => ({ bookId: e.bookId, progress: e.progress, currentChapter: e.currentChapter, chapterLabel: e.chapterLabel }))
+      const r = await window.mozhi.applyPhoneProgress(picks)
+      setApplyingPhone(false)
+      if (r.applied > 0) {
+        onChanged?.(`已吸收 ${r.applied} 本书的手机端进度${r.missing > 0 ? `（${r.missing} 本本地未找到，已跳过）` : ''}`)
+        setPhone({ state: 'idle' })
+      } else {
+        onChanged?.('没有可应用的进度（书籍可能已不在本地书架）')
+      }
+    })()
   }
 
   return (
@@ -315,6 +381,30 @@ export default function CloudSyncPanel({
               </div>
             </div>
           )}
+
+          <div className="setting-row">
+            <div className="setting-info">
+              <strong>手机端进度</strong>
+              <span>读取手机 App 上传的阅读进度，选择后合并进本地书架（不动书库其他内容）</span>
+            </div>
+            <div className="dir-actions">
+              <button type="button" className="btn ghost" disabled={phone.state === 'loading'} onClick={checkPhone}>
+                {PhoneIcon} {phone.state === 'loading' ? '读取中…' : '检查手机进度'}
+              </button>
+            </div>
+          </div>
+
+          {phone.state === 'none' && (
+            <p className="cloud-test-msg" role="status">
+              云端暂无手机端进度（在手机 App「设置 · 进度回传」里上传）
+            </p>
+          )}
+          {phone.state === 'err' && (
+            <p className="cloud-test-msg err" role="alert">
+              {phone.msg}
+            </p>
+          )}
+          {phone.state === 'ok' && phone.p && <PhoneProgressRows p={phone.p} picks={phonePicks} onToggle={togglePick} onApply={applyPhone} busy={applyingPhone} />}
         </>
       ) : (
         <div className="setting-row">
@@ -325,5 +415,41 @@ export default function CloudSyncPanel({
         </div>
       )}
     </section>
+  )
+}
+
+function PhoneProgressRows(props: {
+  p: PhoneProgressView
+  picks: Set<number>
+  onToggle: (id: number) => void
+  onApply: () => void
+  busy: boolean
+}): React.ReactElement {
+  const { p, picks, onToggle, onApply, busy } = props
+  return (
+    <div className="phone-progress" role="group" aria-label="手机端阅读进度">
+      <p className="phone-progress-meta">
+        来自手机 App · {fmtTime(p.generatedAt)} · 共 {p.entries.length} 本
+      </p>
+      <ul className="phone-progress-list">
+        {p.entries.map((e) => (
+          <li key={e.bookId}>
+            <label className="phone-progress-row">
+              <input type="checkbox" checked={picks.has(e.bookId)} onChange={() => onToggle(e.bookId)} />
+              <span className="phone-progress-title">{e.title}</span>
+              <span className="phone-progress-ch">
+                {e.chapterLabel ? `${e.chapterLabel} · ` : ''}
+                {Math.round(e.progress)}%
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="dir-actions">
+        <button type="button" className="btn primary" disabled={busy || picks.size === 0} onClick={onApply}>
+          {busy ? '合并中…' : `合并选中进度（${picks.size}）`}
+        </button>
+      </div>
+    </div>
   )
 }

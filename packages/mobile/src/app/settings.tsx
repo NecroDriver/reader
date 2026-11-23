@@ -13,6 +13,11 @@ import {
   type RemoteManifest
 } from '../cloud'
 import {
+  countReadBooks,
+  loadProgressUploadedAt,
+  uploadPhoneProgress
+} from '../progress'
+import {
   loadAppliedInfo,
   loadCloudConfig,
   saveAppliedInfo,
@@ -21,7 +26,7 @@ import {
   type CloudConfig
 } from '../storage'
 
-type Phase = 'idle' | 'testing' | 'fetching' | 'confirm' | 'applying' | 'done'
+type Phase = 'idle' | 'testing' | 'fetching' | 'confirm' | 'applying' | 'done' | 'uploadingProg'
 
 function fmtBytes(n: number): string {
   if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`
@@ -48,13 +53,17 @@ export default function SettingsScreen(): React.JSX.Element {
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [zipBytes, setZipBytes] = useState<Uint8Array | null>(null)
+  const [readCount, setReadCount] = useState(0)
+  const [progUploadedAt, setProgUploadedAt] = useState<number | null>(null)
 
   useEffect(() => {
     void (async () => {
       setCfg(await loadCloudConfig())
       setApplied(await loadAppliedInfo())
+      setReadCount(await countReadBooks(db))
+      setProgUploadedAt(await loadProgressUploadedAt())
     })()
-  }, [])
+  }, [db])
 
   async function saveAndTest(): Promise<void> {
     if (!cfg) return
@@ -131,6 +140,22 @@ export default function SettingsScreen(): React.JSX.Element {
     setPhase('idle')
   }
 
+  async function uploadProgress(): Promise<void> {
+    if (!cfg) return
+    setErr('')
+    setMsg('')
+    setPhase('uploadingProg')
+    try {
+      const n = await uploadPhoneProgress(db, cfg)
+      setProgUploadedAt(Date.now())
+      setMsg(`已上传 ${n} 本书的阅读进度`)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPhase('idle')
+    }
+  }
+
   const s = StyleSheet.create({
     wrap: { flex: 1, backgroundColor: t.bg },
     scroll: { flex: 1 },
@@ -204,9 +229,9 @@ export default function SettingsScreen(): React.JSX.Element {
     status: { fontSize: 12, color: t.muted, marginTop: 14, lineHeight: 17 }
   })
 
-  const busy = phase === 'testing' || phase === 'fetching' || phase === 'applying'
+  const busy = phase === 'testing' || phase === 'fetching' || phase === 'applying' || phase === 'uploadingProg'
   const busyText =
-    phase === 'testing' ? '正在测试连接…' : phase === 'fetching' ? '正在下载快照…（约 19 MB，请稍候）' : phase === 'applying' ? '正在写入数据库…' : ''
+    phase === 'testing' ? '正在测试连接…' : phase === 'fetching' ? '正在下载快照…（约 19 MB，请稍候）' : phase === 'applying' ? '正在写入数据库…' : phase === 'uploadingProg' ? '正在上传阅读进度…' : ''
 
   return (
     <SafeAreaView style={s.wrap} edges={['top', 'bottom']}>
@@ -354,11 +379,34 @@ export default function SettingsScreen(): React.JSX.Element {
           </View>
         )}
 
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>进度回传</Text>
+          <View style={s.card}>
+            <Text style={s.cardTitle}>{readCount} 本书有阅读进度</Text>
+            <Text style={s.cardLine}>
+              把手机上的阅读进度上传到云端（不上传书库本体）。在桌面端墨纸的
+              「设置 · 云同步 · 手机进度」里检查并吸收。
+            </Text>
+            {progUploadedAt !== null && (
+              <Text style={s.cardLine}>上次上传：{fmtDate(new Date(progUploadedAt).toISOString())}</Text>
+            )}
+            <View style={s.btnRow}>
+              <Pressable
+                style={[s.btnPrimary, phase === 'uploadingProg' || cfg === null ? s.btnDisabled : null]}
+                disabled={phase === 'uploadingProg' || cfg === null}
+                onPress={() => void uploadProgress()}
+              >
+                <Text style={s.btnText}>{phase === 'uploadingProg' ? '上传中…' : '上传阅读进度'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
         <View style={[s.section, { marginBottom: 40 }]}>
           <Text style={s.sectionTitle}>关于</Text>
           <Text style={s.sectionSub}>
-            墨纸移动端 · 阅读快照 · 与桌面端共用同一份 WebDAV 快照。移动端改动不上传，
-            进度回传将在后续版本提供。
+            墨纸移动端 · 阅读快照 · 与桌面端共用同一份 WebDAV 快照。书库改动不上传，
+            阅读进度可在上方「进度回传」手动上传，由桌面端检查并吸收。
           </Text>
         </View>
       </ScrollView>

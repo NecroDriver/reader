@@ -1119,3 +1119,12 @@ body.dropping .drop-overlay { display: flex; }
 .profile-info .mono-path { font-size: 11px; color: var(--muted); }
 .profile-info > span:last-child { font-size: 11px; color: var(--muted); }
 .profile-logout { flex: none; }
+/* ── M4 · 手机端进度 ─────────────────────────── */
+.phone-progress{margin-top:2px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface-2)}
+.phone-progress-meta{margin:0 0 6px;font-size:12px;color:var(--muted)}
+.phone-progress-list{list-style:none;margin:0 0 10px;padding:0;max-height:220px;overflow-y:auto}
+.phone-progress-list li+li{border-top:1px dashed var(--line)}
+.phone-progress-row{display:flex;align-items:center;gap:10px;padding:7px 2px;cursor:pointer}
+.phone-progress-row input[type='checkbox']{width:15px;height:15px;accent-color:var(--seal);flex:none}
+.phone-progress-title{flex:1;min-width:0;font-family:var(--font-serif);font-size:13.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.phone-progress-ch{font-family:var(--font-latin);font-size:12px;color:var(--ink-2);flex:none}

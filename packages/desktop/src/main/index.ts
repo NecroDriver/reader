@@ -80,8 +80,10 @@ import {
 } from './accounts'
 import {
   applyPendingRestore,
+  applyPhoneProgress,
   discardPendingRestore,
   downloadSnapshot,
+  fetchPhoneProgress,
   getCloudConfigView,
   rememberPendingRestore,
   remoteInfo,
@@ -634,6 +636,16 @@ void (async (): Promise<void> => {
   ipcMain.handle('cloud:remoteInfo', () => {
     requireSession()
     return remoteInfo()
+  })
+  ipcMain.handle('cloud:phoneProgress', async () => {
+    requireSession()
+    return fetchPhoneProgress()
+  })
+  ipcMain.handle('cloud:applyPhoneProgress', (_e, picks: Array<{ bookId: number; progress: number; currentChapter: number; chapterLabel: string }>) => {
+    requireSession()
+    const r = applyPhoneProgress(picks ?? [])
+    if (r.applied > 0) shelfChanged()
+    return r
   })
 
   createWindow()

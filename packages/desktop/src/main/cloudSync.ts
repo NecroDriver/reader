@@ -412,3 +412,54 @@ export async function testCloudConnection(): Promise<{ ok: boolean; message: str
     return { ok: false, message: (e as Error).message || '连接失败' }
   }
 }
+
+/* ── M4 · 手机端进度 sidecar（mozhi-progress-phone.json）────────────── */
+
+export interface PhoneProgressEntry {
+  bookId: number
+  title: string
+  progress: number
+  currentChapter: number
+  chapterLabel: string
+}
+
+export interface PhoneProgress {
+  app: string
+  deviceId: string
+  generatedAt: string
+  entries: PhoneProgressEntry[]
+}
+
+export async function fetchPhoneProgress(): Promise<{ ok: boolean; progress?: PhoneProgress; message?: string }> {
+  try {
+    const provider = buildProvider()
+    const data = await provider.get('mozhi-progress-phone.json')
+    const p = JSON.parse(data.toString('utf-8')) as PhoneProgress
+    if (!p || !Array.isArray(p.entries)) return { ok: false, message: '进度文件格式不正确' }
+    return { ok: true, progress: p }
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg === 'NOT_FOUND') return { ok: true, progress: undefined }
+    return { ok: false, message: msg }
+  }
+}
+
+export function applyPhoneProgress(
+  picks: Array<{ bookId: number; progress: number; currentChapter: number; chapterLabel: string }>
+): { applied: number; missing: number } {
+  const db = getDb()
+  let applied = 0
+  let missing = 0
+  const tx = db.transaction(() => {
+    for (const p of picks) {
+      const hit = db
+        .prepare('UPDATE books SET progress = ?, current_chapter = ?, chapter_label = ? WHERE id = ?')
+        .run(Math.min(100, Math.max(0, p.progress)), p.currentChapter, (p.chapterLabel || '').slice(0, 40), p.bookId)
+      if (hit.changes > 0) applied++
+      else missing++
+    }
+  })
+  tx()
+  if (applied > 0) logEvent('cloud', 'info', `已吸收手机端进度：${applied} 本（missing ${missing}）`)
+  return { applied, missing }
+}

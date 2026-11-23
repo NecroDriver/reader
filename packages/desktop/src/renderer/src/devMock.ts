@@ -789,7 +789,32 @@ export function setupDevMock(): void {
         mockCloudRemote
           ? { exists: true, manifest: { ...mockCloudRemote } }
           : { exists: false }
-      )
+      ),
+    fetchPhoneProgress: () =>
+      new Promise((r) =>
+        setTimeout(() => {
+          if (!mockPhoneProgress) {
+            r({ ok: true })
+            return
+          }
+          r({ ok: true, progress: mockPhoneProgress() })
+        }, 600)
+      ),
+    applyPhoneProgress: (
+      picks: Array<{ bookId: number; progress: number; currentChapter: number; chapterLabel: string }>
+    ) =>
+      new Promise((r) => {
+        const known = new Set(shelf().books.map((b) => b.id))
+        let applied = 0
+        for (const p of picks) {
+          if (!known.has(p.bookId)) continue
+          prog.set(p.bookId, { pct: p.progress, label: p.chapterLabel, idx: p.currentChapter, cfi: prog.get(p.bookId)?.cfi ?? '' })
+          applied++
+        }
+        console.log('[devMock] applyPhoneProgress', applied, '/', picks.length)
+        mockShelfListeners.forEach((cb) => cb())
+        r({ applied, missing: picks.length - applied })
+      })
   }
 }
 
@@ -812,6 +837,22 @@ const mockCloud = {
 }
 const mockCloudView = () => ({ ...mockCloud, webdav: { ...mockCloud.webdav }, s3: { ...mockCloud.s3 } })
 let mockCloudRemote: ReturnType<typeof mockManifest> | null = null
+let mockPhoneProgress: (() => {
+  app: string
+  deviceId: string
+  generatedAt: string
+  entries: Array<{ bookId: number; title: string; progress: number; currentChapter: number; chapterLabel: string }>
+}) | null = function () {
+  return {
+    app: 'mozhi-mobile',
+    deviceId: 'test-device',
+    generatedAt: new Date().toISOString(),
+    entries: [
+      { bookId: 301, title: '墨与纸(模拟·在线抓取)', progress: 88, currentChapter: 11, chapterLabel: '第十一章' },
+      { bookId: 101, title: '城南旧事·节选', progress: 42, currentChapter: 3, chapterLabel: '我们看海去' }
+    ]
+  }
+}
 function mockManifest() {
   const s = shelf()
   return {
