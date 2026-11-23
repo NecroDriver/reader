@@ -129,7 +129,7 @@ export default function LoginScreen({ onDone }: { onDone: () => void }) {
                 key={a.id}
                 type="button"
                 role="listitem"
-                className={`seal-card${picked === a.id ? ' picked' : ''}`}
+                className={`seal-card${picked === a.id ? ' picked' : ''}${a.hasPassword ? '' : ' guest'}`}
                 onClick={() => {
                   setPicked(a.id)
                   setPwd('')
@@ -138,7 +138,7 @@ export default function LoginScreen({ onDone }: { onDone: () => void }) {
                 }}
               >
                 <span className="seal-name">{a.name}</span>
-                <span className="seal-sub">{a.hasPassword ? '口令进入' : '直接进入'}</span>
+                <span className="seal-sub">{a.hasPassword ? '口令进入' : '游客 · 直接进入'}</span>
                 {a.id === lastUsedId && <span className="seal-last">上次使用</span>}
               </button>
             ))}
@@ -179,7 +179,7 @@ export default function LoginScreen({ onDone }: { onDone: () => void }) {
                 </div>
               </div>
             ) : (
-              <p className="login-hint">该账号未设置口令，直接进入。</p>
+              <p className="login-hint">该账号未设置口令（游客账号），点击「钤印进入」直接进入。</p>
             )}
             <div className="login-check">
               <input

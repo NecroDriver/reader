@@ -1023,10 +1023,17 @@ body.dropping .drop-overlay { display: flex; }
 .seal-card.picked { background: var(--seal); color: var(--seal-fg); }
 .seal-name {
   font-family: var(--font-serif); font-size: 17px; letter-spacing: .1em;
-  writing-mode: vertical-rl; max-height: 118px; line-height: 1.25; overflow: hidden;
+  writing-mode: vertical-rl; text-orientation: upright;
+  max-height: 118px; line-height: 1.25; overflow: hidden;
 }
 .seal-sub { font-size: 10.5px; letter-spacing: .08em; opacity: .78; }
 .seal-last { margin-top: 4px; font-family: var(--font-latin); font-size: 9.5px; letter-spacing: .1em; color: var(--seal); text-transform: uppercase; opacity: .9; }
+/* 游客账号（无口令）：虚线框弱化，与口令账号区分 */
+.seal-card.guest { border-style: dashed; border-color: var(--line-strong); color: var(--ink-2); }
+.seal-card.guest .seal-name { color: var(--ink-2); }
+.seal-card.guest .seal-last { color: var(--muted); }
+.seal-card.guest.picked { border-style: solid; border-color: var(--ink-2); background: var(--surface-2); color: var(--ink); }
+.seal-card.guest.picked .seal-name { color: var(--ink); }
 
 .login-form { display: flex; flex-direction: column; gap: 12px; }
 .login-field { display: flex; flex-direction: column; gap: 6px; }
@@ -1073,3 +1080,42 @@ body.dropping .drop-overlay { display: flex; }
   .boot-mark { animation: none; }
   .login-panel, .restore-confirm { animation: none; }
 }
+
+/* ---------- 侧栏账号信息 ---------- */
+.side-account { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 0 var(--sp-2); }
+.side-account.collapsed { padding: 0; justify-content: center; }
+.side-account-mark {
+  width: 28px; height: 28px; flex: none; display: grid; place-items: center;
+  font-family: var(--font-serif); font-size: 15px; color: var(--seal-fg);
+  background: var(--seal); border-radius: 5px;
+}
+.side-account-text { display: flex; flex-direction: column; min-width: 0; }
+.side-account-text strong {
+  font-size: 12.5px; font-weight: 600; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 112px;
+}
+.side-account-text em { font-style: normal; font-size: 10.5px; color: var(--muted); letter-spacing: .06em; }
+
+/* ---------- 设置页：分组眉题 + 账号档案卡 ---------- */
+.group-eyebrow {
+  margin: 0 0 6px; font-family: var(--font-latin); font-size: 10px; font-weight: 600;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--seal);
+}
+.settings-group h2 { display: flex; align-items: center; gap: 12px; }
+.settings-group h2::after { content: ''; flex: 1; border-top: 1px dashed var(--line); }
+.settings-group h2 .switch { flex: none; }
+.profile-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--seal-soft);
+}
+.profile-mark {
+  width: 46px; height: 46px; flex: none; display: grid; place-items: center;
+  font-family: var(--font-serif); font-size: 24px; color: var(--seal-fg);
+  background: var(--seal); border-radius: 7px;
+}
+.profile-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.profile-info strong { font-family: var(--font-serif); font-size: 16px; letter-spacing: .06em; color: var(--ink); }
+.profile-info .mono-path { font-size: 11px; color: var(--muted); }
+.profile-info > span:last-child { font-size: 11px; color: var(--muted); }
+.profile-logout { flex: none; }

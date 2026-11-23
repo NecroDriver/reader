@@ -167,6 +167,7 @@ export default function CloudSyncPanel({
 
   return (
     <section className="settings-group">
+      <p className="group-eyebrow">CLOUD SYNC · 云同步</p>
       <h2>
         {CloudIcon} 云同步
         <button

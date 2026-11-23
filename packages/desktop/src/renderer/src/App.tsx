@@ -559,6 +559,20 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
         >
           {navCollapsed ? ExpandIcon : CollapseIcon}
         </button>
+        {accountName &&
+          (navCollapsed ? (
+            <span className="side-account collapsed" title={`当前账号：${accountName}`}>
+              <span className="side-account-mark">{accountName.slice(0, 1)}</span>
+            </span>
+          ) : (
+            <div className="side-account" title={`当前账号：${accountName}`}>
+              <span className="side-account-mark">{accountName.slice(0, 1)}</span>
+              <span className="side-account-text">
+              <strong>{accountName}</strong>
+              <em>的书房</em>
+              </span>
+            </div>
+          ))}
         {!navCollapsed && <div className="side-foot">上次同步 {shelf?.lastSyncAt ?? '—'}</div>}
       </aside>
 
@@ -1024,16 +1038,20 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
             </header>
             <div className="settings-groups">
               <div className="settings-group">
-                <h2>账号</h2>
-                <div className="setting-row">
-                  <div className="setting-info">
-                    <strong>当前账号</strong>
-                    <span className="mono-path">{accountName ?? '环境直通（开发模式）'}</span>
+                <p className="group-eyebrow">ACCOUNT · 账号</p>
+                <div className="profile-card">
+                  <span className="profile-mark">{(accountName ?? '墨').slice(0, 1)}</span>
+                  <div className="profile-info">
+                    <strong>{accountName ?? '环境直通（开发模式）'}</strong>
+                    <span className="mono-path">
+                      {dataDirInfo ? dataDirInfo.custom ?? dataDirInfo.defaultDir : ''}
+                    </span>
+                    <span>独立书库 · 账号级数据隔离</span>
                   </div>
                   {accountName && (
                     <button
                       type="button"
-                      className="btn ghost"
+                      className="btn ghost profile-logout"
                       onClick={() => {
                         void (async () => {
                           await window.mozhi?.logout()
@@ -1050,6 +1068,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
               <CloudSyncPanel onChanged={(m) => pushToast(m)} />
 
               <div className="settings-group">
+                <p className="group-eyebrow">APPEARANCE · 外观</p>
                 <h2>外观</h2>
                 <div className="theme-row">
                   {([['paper', '纸'], ['sepia', '暖'], ['green', '绿'], ['ink', '墨']] as const).map(([t, label]) => (
@@ -1067,6 +1086,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
               </div>
 
               <div className="settings-group">
+                <p className="group-eyebrow">GENERAL · 通用</p>
                 <h2>通用</h2>
                 <div className="setting-row">
                   <div className="setting-info">
@@ -1144,6 +1164,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
               </div>
 
               <div className="settings-group">
+                <p className="group-eyebrow">NETWORK · 网络</p>
                 <h2>网络</h2>
                 <div className="setting-row">
                   <div className="setting-info">
@@ -1195,6 +1216,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
               </div>
 
               <div className="settings-group">
+                <p className="group-eyebrow">DATA · 数据</p>
                 <h2>数据</h2>
                 <div className="setting-row dir-row">
                   <div className="setting-info">
@@ -1279,6 +1301,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
               </div>
 
               <div className="settings-group">
+                <p className="group-eyebrow">ABOUT · 关于</p>
                 <h2>关于</h2>
                 <p className="about-line">
                   墨纸 Mozhi Reader · 本地书架与订阅阅读 · Electron + React
