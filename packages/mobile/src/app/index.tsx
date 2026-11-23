@@ -35,9 +35,21 @@ export default function Shelf(): React.JSX.Element {
   return (
     <ScrollView style={{ backgroundColor: t.bg, flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
       <View style={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 6 }}>
-        <Text style={{ color: t.seal, fontSize: 11, letterSpacing: 2 }}>
-          LIBRARY · 藏书
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ color: t.seal, fontSize: 11, letterSpacing: 2 }}>
+            LIBRARY · 藏书
+          </Text>
+          <Link href="/settings" asChild>
+            <Pressable
+              accessibilityLabel="设置与云同步"
+              accessibilityRole="button"
+              hitSlop={10}
+              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, paddingVertical: 4, paddingHorizontal: 2 }]}
+            >
+              <Text style={{ color: t.ink2, fontSize: 13, letterSpacing: 3 }}>设置</Text>
+            </Pressable>
+          </Link>
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 4 }}>
           <Text style={{ color: t.ink, fontSize: 26, fontWeight: '600' }}>书架</Text>
           <Text style={{ color: t.muted, fontSize: 12, marginLeft: 10 }}>
