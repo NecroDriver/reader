@@ -111,6 +111,10 @@ const bootSession: BootMode = (() => {
     if (err === null) return { mode: 'auto', account: { id: s.account.id, name: s.account.name } }
     /* 自动进入失败（目录被删等）→ 落到登录页人工处理 */
   }
+  /* 停在登录页时，dev 构建同样落 -dev 基座：
+     ① 不与正式版抢生产 userData 的单实例锁（否则 dev 一启动就把用户正在用的正式版顶掉）；
+     ② 日志/缓存与账号注册表（defaultDataDir()）同基座，不再一份写生产一份读 -dev。 */
+  if (!app.isPackaged) app.setPath('userData', defaultDataDir())
   return { mode: 'login' }
 })()
 
