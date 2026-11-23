@@ -1,0 +1,9 @@
+# 墨纸 Mozhi Reader
+node_modules/
+out/
+dist/
+release/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

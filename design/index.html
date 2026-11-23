@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="paper">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>墨纸 Mozhi Reader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400..700;1,400..700&amp;family=Noto+Sans+SC:wght@400;500;700&amp;family=Noto+Serif+SC:wght@400;600;700&amp;display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body data-view="shelf">
+  <div class="app">
+
+    <!-- 标题栏 -->
+    <header class="titlebar">
+      <div class="brand">
+        <span class="seal-mark">墨</span>
+        <span class="brand-name">墨纸</span>
+        <span class="brand-latin">Mozhi Reader</span>
+      </div>
+      <div class="win-ctrl">
+        <button class="win-btn" type="button" aria-label="最小化">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10h11"/></svg>
+        </button>
+        <button class="win-btn" type="button" aria-label="最大化">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1"/></svg>
+        </button>
+        <button class="win-btn" type="button" aria-label="关闭">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="app-body">
+
+      <!-- 侧栏 -->
+      <nav class="sidebar">
+        <button class="nav-item active" data-view="shelf" type="button">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="3.4" height="11" rx="1"/><rect x="8.3" y="4.5" width="3.4" height="11" rx="1"/><path d="M13.8 4.8l3 10.3"/></svg>
+          <span>书架</span>
+          <span id="nav-unread">5</span>
+        </button>
+        <button class="nav-item" data-view="sources" type="button">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.2" cy="14.8" r="1.3" fill="currentColor" stroke="none"/><path d="M5.2 9.6a5.2 5.2 0 0 1 5.2 5.2"/><path d="M5.2 4.8a10 10 0 0 1 10 10"/></svg>
+          <span>订阅源</span>
+        </button>
+        <button class="nav-item" data-view="settings" type="button">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="2.8"/><path d="M10 2.5v3.3M10 14.2v3.3M2.5 10h3.3M14.2 10h3.3M4.7 4.7L7 7M13 13l2.3 2.3M15.3 4.7L13 7M7 13l-2.3 2.3"/></svg>
+          <span>设置</span>
+        </button>
+        <div class="side-foot">
+          <span id="side-sync">上次同步 14:32</span>
+        </div>
+      </nav>
+
+      <!-- 视图：书架 -->
+      <main id="view-shelf" class="view is-active">
+        <div class="view-head">
+          <div class="eyebrow">LIBRARY · 藏书</div>
+          <h1>书架</h1>
+          <div class="head-actions">
+            <div id="shelf-tabs">
+              <button class="tab active" data-filter="all" type="button">全部</button>
+              <button class="tab" data-filter="book" type="button">书籍</button>
+              <button class="tab" data-filter="article" type="button">文章</button>
+            </div>
+            <input id="file-input" type="file" accept=".txt,.md,text/plain" hidden>
+            <button id="btn-import" class="ghost" type="button">导入图书</button>
+            <button id="btn-pull-all" class="primary" type="button">立即拉取全部</button>
+          </div>
+        </div>
+        <div id="shelf-stats"></div>
+        <div id="shelf-grid"></div>
+      </main>
+
+      <!-- 视图：阅读器 -->
+      <main id="view-reader" class="view">
+        <div class="reader-top">
+          <button id="btn-reader-back" type="button">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 10H4"/><path d="M9 4.5L3.5 10 9 15.5"/></svg>
+            <span>返回</span>
+          </button>
+          <div class="reader-title-box">
+            <div id="reader-title"></div>
+            <div id="reader-chapter"></div>
+          </div>
+          <span id="reader-progress-text">0%</span>
+          <button id="btn-reader-toc" type="button" aria-label="目录">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 5.5h8M8.5 10h8M8.5 14.5h8"/><circle cx="4.5" cy="5.5" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
+          </button>
+          <button id="btn-reader-settings" type="button" aria-label="阅读设置">Aa</button>
+        </div>
+        <div id="reader-progress-bar" aria-hidden="true"></div>
+        <div id="reader-scroll">
+          <article id="reader-content"></article>
+        </div>
+        <aside id="reader-toc" aria-label="目录"></aside>
+        <div id="reader-settings">
+          <div>
+            <button class="theme-swatch active" data-theme="paper" type="button" title="纸张 Paper" aria-label="主题：纸张 Paper"></button>
+            <button class="theme-swatch" data-theme="sepia" type="button" title="深褐 Sepia" aria-label="主题：深褐 Sepia"></button>
+            <button class="theme-swatch" data-theme="ink" type="button" title="墨色 Ink" aria-label="主题：墨色 Ink"></button>
+          </div>
+          <div>
+            <button id="font-minus" type="button" aria-label="减小字号">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10h11"/></svg>
+            </button>
+            <span id="font-val">17</span>
+            <button id="font-plus" type="button" aria-label="增大字号">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg>
+            </button>
+          </div>
+          <div>
+            <button class="lh-opt" data-lh="1.7" type="button">1.7</button>
+            <button class="lh-opt active" data-lh="1.9" type="button">1.9</button>
+            <button class="lh-opt" data-lh="2.1" type="button">2.1</button>
+          </div>
+        </div>
+      </main>
+
+      <!-- 视图：订阅源 -->
+      <main id="view-sources" class="view">
+        <div class="view-head">
+          <div class="eyebrow">SUBSCRIPTIONS · 订阅</div>
+          <h1>订阅源</h1>
+          <button id="btn-add-source" class="primary" type="button">添加订阅</button>
+        </div>
+        <form id="source-form" class="hidden">
+          <div>
+            <label for="sf-name">名称</label>
+            <input id="sf-name" type="text" placeholder="订阅名称" autocomplete="off">
+          </div>
+          <div>
+            <label for="sf-url">地址</label>
+            <input id="sf-url" type="text" placeholder="example.com/feed" autocomplete="off">
+          </div>
+          <div>
+            <label for="sf-type">类型</label>
+            <select id="sf-type">
+              <option value="rss">RSS</option>
+              <option value="web">网页</option>
+              <option value="api">API</option>
+            </select>
+          </div>
+          <div>
+            <label for="sf-interval">拉取间隔</label>
+            <select id="sf-interval">
+              <option>15分钟</option>
+              <option>30分钟</option>
+              <option>1小时</option>
+              <option>6小时</option>
+              <option>12小时</option>
+              <option>每天</option>
+              <option>仅手动</option>
+            </select>
+          </div>
+          <div>
+            <button id="sf-save" class="primary" type="button">保存</button>
+            <button id="sf-cancel" class="ghost" type="button">取消</button>
+          </div>
+        </form>
+        <div id="source-list"></div>
+      </main>
+
+      <!-- 视图：设置 -->
+      <main id="view-settings" class="view">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">SETTINGS · 设置</div>
+            <h1>设置</h1>
+          </div>
+        </div>
+        <div id="settings-rows">
+          <div class="setting-row">
+            <span class="setting-label">开机自动启动</span>
+            <button class="setting-switch switch" data-key="autoLaunch" type="button" aria-label="开机自动启动"><i></i></button>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">关闭时最小化到托盘</span>
+            <button class="setting-switch switch on" data-key="minimizeToTray" type="button" aria-label="关闭时最小化到托盘"><i></i></button>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">新文章自动标记已读</span>
+            <button class="setting-switch switch" data-key="autoMarkRead" type="button" aria-label="新文章自动标记已读"><i></i></button>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">默认拉取间隔</span>
+            <select>
+              <option>15分钟</option>
+              <option>30分钟</option>
+              <option>1小时</option>
+              <option>6小时</option>
+              <option>12小时</option>
+              <option>每天</option>
+              <option>仅手动</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">存储位置</span>
+            <span class="setting-path">D:\Mozhi\Library</span>
+            <button class="ghost" type="button">打开文件夹</button>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">清空缓存</span>
+            <button class="danger ghost" type="button">清空</button>
+          </div>
+        </div>
+      </main>
+
+    </div>
+  </div>
+
+  <!-- 拖放导入遮罩 -->
+  <div id="drop-overlay" class="hidden" aria-hidden="true"><div>松开 导入本地图书</div></div>
+
+  <!-- Toast 容器（JS 填充） -->
+  <div id="toasts"></div>
+</body>
+</html>
