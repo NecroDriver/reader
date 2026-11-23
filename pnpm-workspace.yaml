@@ -1,5 +1,6 @@
 packages:
-  - 'packages/*'
+  # desktop 走 pnpm；mobile 用独立 npm node_modules（Expo/Metro 对 pnpm 符号链接敏感），勿加入
+  - packages/desktop
 
 onlyBuiltDependencies:
   - better-sqlite3
