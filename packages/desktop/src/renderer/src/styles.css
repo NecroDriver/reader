@@ -761,6 +761,22 @@ body.dropping .drop-overlay { display: flex; }
 .sf-submit { align-self: flex-end; }
 .source-form.novel { border-left: 2px solid var(--seal); }
 .source-form.novel.first { margin-top: 0; }
+/* 书源页双栏：左=添加小说（定宽贴顶），右=同步记录（弹性占满） */
+.sources-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+  gap: var(--sp-4); align-items: start;
+  margin-top: var(--sp-6);
+}
+.sources-layout .source-form { margin-top: 0; max-width: none; position: sticky; top: var(--sp-4); }
+.sources-layout .source-form .form-row { flex-direction: column; align-items: stretch; }
+.sources-layout .source-form .sf-field { flex: 1 1 auto; }
+.sources-layout .source-form .sf-submit { align-self: stretch; }
+.sources-layout .pull-log-card { margin-bottom: 0; }
+@media (max-width: 1120px) {
+  .sources-layout { grid-template-columns: 1fr; }
+  .sources-layout .source-form { position: static; }
+}
 /* 正文编辑器 */
 .ch-editor { display: flex; flex-direction: column; gap: var(--sp-3); }
 .ch-edit-area {

@@ -656,34 +656,35 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
               </p>
             </header>
 
-            <div className="source-form novel first">
-              <h2 className="form-title">添加小说</h2>
-              <div className="form-row">
-                <label className="sf-field grow2">
-                  <span className="sf-label">小说目录页地址</span>
-                  <input
-                    className="sf-input"
-                    type="url"
-                    placeholder="小说目录页（章节列表）网址"
-                    value={novelUrl}
-                    onChange={(e) => {
-                      setNovelErr('')
-                      setNovelUrl(e.target.value)
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && submitNovel()}
-                  />
-                </label>
-                <button className={'btn primary sf-submit' + (novelBusy ? ' loading' : '')} onClick={submitNovel} disabled={novelBusy}>
-                  {novelBusy ? '正在解析…' : '抓取整本'}
-                </button>
+            <div className="sources-layout">
+              <div className="source-form novel first">
+                <h2 className="form-title">添加小说</h2>
+                <div className="form-row">
+                  <label className="sf-field grow2">
+                    <span className="sf-label">小说目录页地址</span>
+                    <input
+                      className="sf-input"
+                      type="url"
+                      placeholder="小说目录页（章节列表）网址"
+                      value={novelUrl}
+                      onChange={(e) => {
+                        setNovelErr('')
+                        setNovelUrl(e.target.value)
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && submitNovel()}
+                    />
+                  </label>
+                  <button className={'btn primary sf-submit' + (novelBusy ? ' loading' : '')} onClick={submitNovel} disabled={novelBusy}>
+                    {novelBusy ? '正在解析…' : '抓取整本'}
+                  </button>
+                </div>
+                {novelErr && <p className="form-err">{novelErr}</p>}
+                <p className="form-hint">
+                  解析目录页章节列表后自动逐章抓取成书（限速 1.5-3 秒/章，可暂停续抓）；完成后在书架阅读，支持导出 txt。
+                </p>
               </div>
-              {novelErr && <p className="form-err">{novelErr}</p>}
-              <p className="form-hint">
-                解析目录页章节列表后自动逐章抓取成书（限速 1.5-3 秒/章，可暂停续抓）；完成后在书架阅读，支持导出 txt。
-              </p>
-            </div>
 
-            <div className="pull-log-card">
+              <div className="pull-log-card">
               <h2 className="form-title">同步记录</h2>
               {pullLogs.length === 0 ? (
                 <p className="empty">暂无同步记录，添加一本小说或点书架「更新全部」试试</p>
@@ -735,6 +736,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                   )}
                 </ul>
               )}
+              </div>
             </div>
           </section>
         )}
