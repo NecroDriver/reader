@@ -5,6 +5,7 @@ import { useSQLiteContext } from 'expo-sqlite'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { usePrefs } from '../theme'
 import { THEMES, type ThemeDef } from '../types'
+import { useSession } from '../session'
 import {
   applySnapshotDb,
   downloadSnapshotDb,
@@ -45,6 +46,7 @@ export default function SettingsScreen(): React.JSX.Element {
   const db = useSQLiteContext()
   const { theme } = usePrefs()
   const t: ThemeDef = THEMES[theme]
+  const session = useSession()
 
   const [cfg, setCfg] = useState<CloudConfig | null>(null)
   const [remote, setRemote] = useState<RemoteManifest | null>(null)
@@ -244,6 +246,26 @@ export default function SettingsScreen(): React.JSX.Element {
         </View>
       </View>
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
+        {session !== null && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>账号</Text>
+            <View style={s.card}>
+              <Text style={s.cardTitle}>{session.account.name}</Text>
+              <Text style={s.cardLine}>独立书库 · 账号级数据隔离；退出后需重新输入口令进入。</Text>
+              <View style={s.btnRow}>
+                <Pressable
+                  style={[s.btnGhost, busy ? s.btnDisabled : null]}
+                  disabled={busy}
+                  onPress={() => void session.logout()}
+                  accessibilityLabel="退出登录"
+                >
+                  <Text style={s.btnTextGhost}>退出登录</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
+
         <View style={s.section}>
           <Text style={s.sectionTitle}>云同步 · WebDAV</Text>
           <Text style={s.sectionSub}>
@@ -324,7 +346,7 @@ export default function SettingsScreen(): React.JSX.Element {
             <View style={s.card}>
               <Text style={s.cardTitle}>{fmtDate(remote.createdAt)} 的快照</Text>
               <Text style={s.cardLine}>
-                {remote.books} 本书 · {remote.chapters} 章 · {remote.articles} 篇文章 · {fmtBytes(remote.zipBytes)}
+                {remote.books} 本书 · {remote.chapters} 章 · {fmtBytes(remote.zipBytes)}
               </Text>
               <Text style={s.cardLine}>由桌面端墨纸 v{remote.app} 上传</Text>
             </View>

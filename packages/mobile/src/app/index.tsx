@@ -53,7 +53,9 @@ export default function Shelf(): React.JSX.Element {
         <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 4 }}>
           <Text style={{ color: t.ink, fontSize: 26, fontWeight: '600' }}>书架</Text>
           <Text style={{ color: t.muted, fontSize: 12, marginLeft: 10 }}>
-            {loaded ? `${books.length} 本图书 · 云端快照` : '读取中…'}
+            {loaded
+              ? `${books.length} 本图书 · ${books.filter((b) => b.format === 'NOVEL').length} 本在线`
+              : '读取中…'}
           </Text>
         </View>
       </View>
