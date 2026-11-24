@@ -269,7 +269,37 @@ const api = {
     ipcRenderer.invoke('pg:register', name, password),
   loginPg: (name: string, password: string): Promise<PgResult> =>
     ipcRenderer.invoke('pg:login', name, password),
-  logoutPg: (): Promise<PgResult> => ipcRenderer.invoke('pg:logout')
+  logoutPg: (): Promise<PgResult> => ipcRenderer.invoke('pg:logout'),
+
+  /* 局域网设备同步（v2.2 M-B） */
+  getLanConfig: (): Promise<LanCfgView & { devices: LanDeviceView[] }> =>
+    ipcRenderer.invoke('lan:getConfig'),
+  saveLanConfig: (patch: { enabled?: boolean; port?: number }): Promise<LanCfgView & { devices: LanDeviceView[] }> =>
+    ipcRenderer.invoke('lan:saveConfig', patch),
+  startLanPair: (): Promise<LanPairView> => ipcRenderer.invoke('lan:startPair'),
+  revokeLanDevice: (id: string): Promise<LanCfgView & { devices: LanDeviceView[] }> =>
+    ipcRenderer.invoke('lan:revoke', id)
+}
+
+export interface LanCfgView {
+  enabled: boolean
+  port: number
+  lanIp: string
+  running: boolean
+}
+export interface LanDeviceView {
+  id: string
+  name: string
+  createdAt: number
+  lastSyncAt: number
+}
+export interface LanPairView {
+  ip: string
+  port: number
+  code: string
+  expiresAt: number
+  qrSvg: string
+  payload: string
 }
 
 export type PgResult = { ok: true; view: PgCfgView } | { ok: false; error: string }

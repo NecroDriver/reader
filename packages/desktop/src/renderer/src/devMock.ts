@@ -6,6 +6,16 @@
  */
 import type { NovelJobState, OpenedBook, Shelf } from './types'
 
+/* preload LanPairView 的内联等价（renderer 不能直接 import preload） */
+interface LanPair {
+  ip: string
+  port: number
+  code: string
+  expiresAt: number
+  qrSvg: string
+  payload: string
+}
+
 const EPUB_TOC = [
   '冬阳·童年·骆驼队',
   '惠安馆',
@@ -746,6 +756,35 @@ export function setupDevMock(): void {
     logoutPg: () => {
       mockPg.session = null
       return Promise.resolve({ ok: true, view: mockPgView() })
+    },
+
+    /* 局域网设备同步 mock */
+    getLanConfig: () => Promise.resolve(mockLanView()),
+    saveLanConfig: (patch: { enabled?: boolean; port?: number }) => {
+      if (patch.enabled !== undefined) mockLan.enabled = patch.enabled
+      if (patch.port !== undefined && patch.port > 0) mockLan.port = patch.port
+      mockLan.running = mockLan.enabled
+      return Promise.resolve(mockLanView())
+    },
+    startLanPair: () =>
+      new Promise<LanPair>((r) => {
+        setTimeout(() => {
+          const code = String(Math.floor(100000 + Math.random() * 900000))
+          r({
+            ip: '192.168.2.100',
+            port: mockLan.port,
+            code,
+            expiresAt: Date.now() + 5 * 60 * 1000,
+            qrSvg:
+              '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 29 29" shape-rendering="crispEdges" width="200" height="200"><path fill="#000" d="M1 1h7v1H1zM11 1h2v1h-2zM15 1h2v1h-2zM19 1h9v1h-9zM1 2h1v1H1zM7 2h1v1H7zM9 2h1v1H9zM12 2h3v1h-3zM17 2h1v1h-1zM19 2h1v1h-1zM27 2h1v1h-1zM1 3h1v1H1zM3 3h3v1H3zM7 3h1v1H7zM10 3h1v1h-1zM13 3h3v1h-3zM16 3h1v1h-1zM19 3h1v1h-1zM21 3h5v1h-5zM27 3h1v1h-1zM1 4h1v1H1zM3 4h3v1H3zM7 4h1v1H7zM9 4h2v1H9zM12 4h1v1h-1zM14 4h2v1h-2zM17 4h2v1h-2zM20 4h1v1h-1zM22 4h2v1h-2zM26 4h1v1h-1zM1 5h1v1H1zM3 5h3v1H3zM7 5h1v1H7zM11 5h2v1h-2zM15 5h1v1h-1zM18 5h3v1h-3zM23 5h2v1h-2zM26 5h1v1h-1zM1 6h1v1H1zM7 6h1v1H7zM9 6h1v1H9zM11 6h1v1h-1zM13 6h2v1h-2zM17 6h1v1h-1zM19 6h2v1h-2zM22 6h1v1h-1zM24 6h3v1h-3zM1 7h1v1H1zM2 7h4v1H2zM7 7h1v1H7zM10 7h1v1h-1zM13 7h2v1h-2zM16 7h2v1h-2zM19 7h1v1h-1zM21 7h1v1h-1zM23 7h1v1h-1zM25 7h1v1h-1zM27 7h1v1h-1zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h2v1h-2zM17 8h1v1h-1zM20 8h1v1h-1zM22 8h2v1h-2zM26 8h1v1h-1zM1 9h2v1H1zM4 9h1v1H4zM6 9h1v1H6zM8 9h2v1H8zM11 9h2v1h-2zM15 9h2v1h-2zM19 9h2v1h-2zM23 9h1v1h-1zM25 9h1v1h-1zM27 9h1v1h-1zM2 10h1v1H2zM5 10h2v1H5zM9 10h1v1H9zM11 10h2v1h-2zM15 10h1v1h-1zM17 10h2v1h-2zM21 10h2v1h-2zM24 10h1v1h-1zM26 10h1v1h-1zM1 11h1v1H1zM3 11h1v1H3zM6 11h2v1H6zM9 11h1v1H9zM12 11h1v1h-1zM14 11h3v1h-3zM19 11h1v1h-1zM22 11h1v1h-1zM24 11h3v1h-3zM2 12h2v1H2zM5 12h1v1H5zM8 12h2v1H8zM11 12h1v1h-1zM13 12h1v1h-1zM16 12h1v1h-1zM18 12h1v1h-1zM20 12h2v1h-2zM23 12h1v1h-1zM26 12h1v1h-1zM1 13h2v1H1zM4 13h2v1H4zM7 13h1v1H7zM10 13h1v1h-1zM12 13h1v1h-1zM15 13h1v1h-1zM17 13h1v1h-1zM19 13h2v1h-2zM22 13h2v1h-2zM25 13h1v1h-1zM27 13h1v1h-1zM2 14h1v1H2zM5 14h1v1H5zM8 14h1v1H8zM11 14h1v1h-1zM13 14h1v1h-1zM16 14h2v1h-2zM19 14h1v1h-1zM21 14h3v1h-3zM25 14h1v1h-1zM1 15h1v1H1zM4 15h2v1H4zM7 15h1v1H7zM9 15h1v1H9zM12 15h2v1h-2zM15 15h1v1h-1zM18 15h1v1h-1zM20 15h1v1h-1zM22 15h2v1h-2zM26 15h1v1h-1zM2 16h2v1H2zM5 16h1v1H5zM8 16h1v1H8zM10 16h1v1h-1zM13 16h1v1h-1zM16 16h2v1h-2zM19 16h1v1h-1zM21 16h1v1h-1zM24 16h1v1h-1zM26 16h1v1h-1zM1 17h1v1H1zM3 17h1v1H3zM5 17h2v1H5zM9 17h2v1H9zM12 17h1v1h-1zM14 17h1v1h-1zM17 17h1v1h-1zM19 17h2v1h-2zM23 17h1v1h-1zM25 17h2v1h-2zM2 18h2v1H2zM6 18h1v1H6zM9 18h1v1H9zM11 18h1v1h-1zM13 18h2v1h-2zM16 18h1v1h-1zM18 18h1v1h-1zM21 18h2v1h-2zM24 18h1v1h-1zM26 18h1v1h-1zM1 19h1v1H1zM3 19h4v1H3zM8 19h1v1H8zM10 19h2v1h-2zM13 19h1v1h-1zM15 19h1v1h-1zM17 19h2v1h-2zM20 19h1v1h-1zM22 19h2v1h-2zM25 19h1v1h-1zM27 19h1v1h-1zM1 20h1v1H1zM7 20h1v1H7zM10 20h1v1h-1zM12 20h2v1h-2zM15 20h1v1h-1zM18 20h1v1h-1zM20 20h2v1h-2zM23 20h1v1h-1zM26 20h1v1h-1zM2 21h1v1H2zM4 21h2v1H4zM8 21h1v1H8zM11 21h1v1h-1zM14 21h1v1h-1zM16 21h1v1h-1zM19 21h1v1h-1zM21 21h2v1h-2zM24 21h1v1h-1zM26 21h1v1h-1zM1 22h1v1H1zM3 22h3v1H3zM7 22h1v1H7zM9 22h1v1H9zM12 22h1v1h-1zM15 22h1v1h-1zM17 22h1v1h-1zM20 22h1v1h-1zM22 22h1v1h-1zM24 22h2v1h-2zM27 22h1v1h-1zM1 23h1v1H1zM7 23h1v1H7zM10 23h1v1h-1zM13 23h2v1h-2zM16 23h1v1h-1zM18 23h1v1h-1zM21 23h1v1h-1zM23 23h1v1h-1zM25 23h2v1h-2zM1 24h1v1H1zM2 24h4v1H2zM7 24h1v1H7zM9 24h2v1H9zM13 24h1v1h-1zM15 24h1v1h-1zM17 24h2v1h-2zM20 24h1v1h-1zM22 24h1v1h-1zM24 24h3v1h-3zM1 25h1v1H1zM7 25h1v1H7zM11 25h1v1h-1zM14 25h1v1h-1zM16 25h2v1h-2zM19 25h1v1h-1zM21 25h2v1h-2zM25 25h1v1h-1zM27 25h1v1h-1z" fill-rule="evenodd"/></svg>',
+            payload: JSON.stringify({ v: 1, ip: '192.168.2.100', port: mockLan.port, s: 'mock-secret' })
+          })
+          console.log('[devMock] startLanPair', code)
+        }, 500)
+      }),
+    revokeLanDevice: (id: string) => {
+      mockLan.devices = mockLan.devices.filter((d) => d.id !== id)
+      return Promise.resolve(mockLanView())
     }
   }
 }
@@ -779,6 +818,20 @@ const mockPg = {
 }
 const mockPgUsers = new Map<string, string>()
 const mockPgView = () => ({ ...mockPg, session: mockPg.session ? { ...mockPg.session } : null })
+/* 局域网设备同步 mock 状态 */
+const mockLan = {
+  enabled: false,
+  port: 7380,
+  running: false,
+  devices: [] as { id: string; name: string; createdAt: number; lastSyncAt: number }[]
+}
+const mockLanView = () => ({
+  enabled: mockLan.enabled,
+  port: mockLan.port,
+  lanIp: '192.168.2.100',
+  running: mockLan.running,
+  devices: mockLan.devices.map((d) => ({ ...d }))
+})
 let mockCloudRemote: ReturnType<typeof mockManifest> | null = null
 let mockPhoneProgress: (() => {
   app: string

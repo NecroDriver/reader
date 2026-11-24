@@ -43,6 +43,16 @@ import {
   closeDb,
   listOnlineBookIds
 } from './db'
+import {
+  getLanConfigView,
+  listDevicesView,
+  saveLanConfig,
+  revokeDevice,
+  startPairing,
+  restartServer,
+  stopServer,
+  setLanProgressSink
+} from './lanSync'
 import { parseTocPages, writeTxtFile } from './novel'
 import {
   setNovelDb,
@@ -539,11 +549,15 @@ void (async (): Promise<void> => {
     markStaleNovelLogs()
     // 「启动时自动更新小说」：静默跑一轮全量增量检查（进度走同步记录，不打扰）
     if (boolSetting('pull_on_start', true)) void updateAllNovels().catch(() => {})
+    setLanProgressSink(() => mainWindow?.webContents.send('shelf:changed'))
+    void restartServer()
     const a = getActiveAccount()
     logEvent('app', 'info', `已进入账号「${a?.name ?? 'env'}」（v${app.getVersion()}，数据目录 ${app.getPath('userData')}）`)
   }
   const teardownSession = (): void => {
     resetNovelJobs()
+    stopServer()
+    setLanProgressSink(null)
     closeDb()
     deactivateAccount()
     sessionActive = false
@@ -676,6 +690,35 @@ void (async (): Promise<void> => {
   ipcMain.handle('pg:logout', () => {
     requireSession()
     return logoutPgAccount()
+  })
+
+  /* ---------- 局域网设备同步（v2.2 M-B） ---------- */
+  ipcMain.handle('lan:getConfig', () => {
+    requireSession()
+    return { ...getLanConfigView(), devices: listDevicesView() }
+  })
+  ipcMain.handle('lan:saveConfig', (_e, patch: { enabled?: boolean; port?: number }) => {
+    requireSession()
+    const view = saveLanConfig(patch ?? {})
+    return { ...view, devices: listDevicesView() }
+  })
+  ipcMain.handle('lan:startPair', async () => {
+    requireSession()
+    const p = startPairing()
+    const payload = JSON.stringify({ v: 1, ip: p.ip, port: p.port, s: p.secret })
+    let qrSvg = ''
+    try {
+      const QR = (await import('qrcode')).default
+      qrSvg = await QR.toString(payload, { type: 'svg', margin: 1, width: 240 })
+    } catch {
+      qrSvg = ''
+    }
+    return { ip: p.ip, port: p.port, code: p.code, expiresAt: p.expiresAt, qrSvg, payload }
+  })
+  ipcMain.handle('lan:revoke', (_e, id: string) => {
+    requireSession()
+    revokeDevice(String(id || ''))
+    return { ...getLanConfigView(), devices: listDevicesView() }
   })
 
   createWindow()

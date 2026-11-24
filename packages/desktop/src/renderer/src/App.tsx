@@ -4,6 +4,7 @@ import BookDetailModal, { coverSrc } from './BookDetailModal'
 import LoginScreen from './LoginScreen'
 import CloudSyncPanel from './CloudSyncPanel'
 import PgSyncPanel from './PgSyncPanel'
+import LanSyncPanel from './LanSyncPanel'
 import SliderSwitch from './SliderSwitch'
 import { setupDevMock } from './devMock'
 import type { Book, ImportOutcome, NovelJobState, PullLogEntry, Shelf, ViewName } from './types'
@@ -825,6 +826,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                 </div>
               ) : (
                 <>
+                  <LanSyncPanel onChanged={(m) => pushToast(m)} />
                   <CloudSyncPanel onChanged={(m) => pushToast(m)} />
                   <PgSyncPanel onChanged={(m) => pushToast(m)} />
                 </>

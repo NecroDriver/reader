@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
 import { join } from 'node:path'
 import { parseLocalFile } from './parsers'
@@ -118,6 +119,8 @@ export function getDb(): Database.Database {
   `)
   migrate(db)
   if (seedPolicy === 'demo') seedIfEmpty(db)
+  /* 播种行（及任何遗漏行）也要有同步身份，否则对设备同步不可见 */
+  backfillSyncCols(db)
   return db
 }
 
@@ -205,6 +208,36 @@ function migrate(d: Database.Database): void {
       created_at REAL NOT NULL DEFAULT 0
     );
   `)
+
+  /* 设备同步（v2.2 M-B）：sync_uuid 跨端身份、updated_at 行级版本、chapters_rev 章节集版本、删除墓碑 */
+  const syncCols = d.prepare('PRAGMA table_info(books)').all() as { name: string }[]
+  if (!syncCols.some((c) => c.name === 'sync_uuid')) {
+    d.exec("ALTER TABLE books ADD COLUMN sync_uuid TEXT NOT NULL DEFAULT ''")
+  }
+  if (!syncCols.some((c) => c.name === 'updated_at')) {
+    d.exec('ALTER TABLE books ADD COLUMN updated_at REAL NOT NULL DEFAULT 0')
+  }
+  if (!syncCols.some((c) => c.name === 'chapters_rev')) {
+    d.exec('ALTER TABLE books ADD COLUMN chapters_rev INTEGER NOT NULL DEFAULT 0')
+  }
+  /* 旧库回填：已有书补 uuid/时间戳/章节版本（迁移与首次播种后都会调用） */
+  backfillSyncCols(d)
+  d.exec(`
+    CREATE TABLE IF NOT EXISTS mozhi_tombstones (
+      uuid TEXT PRIMARY KEY,
+      deleted_at REAL NOT NULL
+    );
+  `)
+}
+
+/** 给 sync_uuid 为空的书补跨端身份/时间戳/章节版本（幂等）。 */
+function backfillSyncCols(d: Database.Database): void {
+  const now = Date.now()
+  d.transaction(() => {
+    const rows = d.prepare("SELECT id FROM books WHERE sync_uuid = ''").all() as { id: number }[]
+    const fill = d.prepare('UPDATE books SET sync_uuid = ?, updated_at = ?, chapters_rev = 1 WHERE id = ?')
+    for (const r of rows) fill.run(randomUUID(), now, r.id)
+  })()
 }
 
 function seedIfEmpty(d: Database.Database): void {
@@ -286,10 +319,10 @@ export function importLocalFiles(paths: string[]): ImportResult[] {
         }
         const info = d
           .prepare(
-            `INSERT INTO books (title, author, format, cover_idx, progress, chapter_label, sort_at, total_chapters, current_chapter, origin_path)
-             VALUES (?, '', ?, ?, 0, '', ?, 0, 0, ?)`
+            `INSERT INTO books (title, author, format, cover_idx, progress, chapter_label, sort_at, total_chapters, current_chapter, origin_path, sync_uuid, updated_at, chapters_rev)
+             VALUES (?, '', ?, ?, 0, '', ?, 0, 0, ?, ?, ?, ?)`
           )
-          .run(title, fmt, Math.floor(Math.random() * 5), Date.now() / 1000, p)
+          .run(title, fmt, Math.floor(Math.random() * 5), Date.now() / 1000, p, randomUUID(), Date.now(), 0)
         results.push({ ok: true, bookId: Number(info.lastInsertRowid), title, chapters: 0 })
         continue
       }
@@ -307,8 +340,8 @@ export function importLocalFiles(paths: string[]): ImportResult[] {
       const tx = d.transaction(() => {
         const info = d
           .prepare(
-            `INSERT INTO books (title, author, format, cover_idx, progress, chapter_label, sort_at, total_chapters, current_chapter, origin_path)
-             VALUES (?,?,?,?,0,'',?, ?, 0, ?)`
+            `INSERT INTO books (title, author, format, cover_idx, progress, chapter_label, sort_at, total_chapters, current_chapter, origin_path, sync_uuid, updated_at, chapters_rev)
+             VALUES (?,?,?,?,0,'',?, ?, 0, ?, ?, ?, ?)`
           )
           .run(
             parsed.title,
@@ -317,7 +350,10 @@ export function importLocalFiles(paths: string[]): ImportResult[] {
             Math.floor(Math.random() * 5),
             Date.now() / 1000,
             parsed.chapters.length,
-            p
+            p,
+            randomUUID(),
+            Date.now(),
+            parsed.chapters.length > 0 ? 1 : 0
           )
         const bookId = Number(info.lastInsertRowid)
         const insCh = d.prepare('INSERT INTO chapters (book_id, idx, title, content) VALUES (?,?,?,?)')
@@ -393,8 +429,8 @@ export function saveProgress(
 ): void {
   const d = getDb()
   d.prepare(
-    'UPDATE books SET current_chapter = ?, progress = ?, chapter_label = ?, cfi = ? WHERE id = ?'
-  ).run(chapterIdx, Math.max(0, Math.min(100, pct)), label.slice(0, 40), cfi, bookId)
+    'UPDATE books SET current_chapter = ?, progress = ?, chapter_label = ?, cfi = ?, updated_at = ? WHERE id = ?'
+  ).run(chapterIdx, Math.max(0, Math.min(100, pct)), label.slice(0, 40), cfi, Date.now(), bookId)
 }
 
 /* ---------- 订阅源与文章 ---------- */
@@ -449,10 +485,18 @@ export function removeSource(id: number): void {
   })()
 }
 
-/** 删除一本书及其章节/在线书源记录（书架管理用） */
+/** 删除一本书及其章节/在线书源记录（书架管理用）；写墓碑供设备同步 */
 export function deleteBook(id: number): void {
   const d = getDb()
   d.transaction(() => {
+    const row = d.prepare('SELECT sync_uuid FROM books WHERE id = ?').get(id) as
+      | { sync_uuid: string }
+      | undefined
+    if (row && row.sync_uuid) {
+      d.prepare(
+        'INSERT OR REPLACE INTO mozhi_tombstones (uuid, deleted_at) VALUES (?, ?)'
+      ).run(row.sync_uuid, Date.now())
+    }
     d.prepare('DELETE FROM chapters WHERE book_id = ?').run(id)
     d.prepare('DELETE FROM novel_sources WHERE book_id = ?').run(id)
     d.prepare('DELETE FROM books WHERE id = ?').run(id)
@@ -682,10 +726,10 @@ export function createNovelBook(tocUrl: string, title: string, author: string, t
   const tx = d.transaction(() => {
     const info = d
       .prepare(
-        `INSERT INTO books (title, author, format, cover_idx, progress, chapter_label, sort_at, total_chapters, current_chapter, origin_path)
-         VALUES (?,?,'NOVEL',?,0,'',?, 0, 0, '')`
+        `INSERT INTO books (title, author, format, cover_idx, progress, chapter_label, sort_at, total_chapters, current_chapter, origin_path, sync_uuid, updated_at)
+         VALUES (?,?,'NOVEL',?,0,'',?, 0, 0, '', ?, ?)`
       )
-      .run(title, author, Math.floor(Math.random() * 5), Date.now() / 1000)
+      .run(title, author, Math.floor(Math.random() * 5), Date.now() / 1000, randomUUID(), Date.now())
     const bookId = Number(info.lastInsertRowid)
     d.prepare('INSERT INTO novel_sources (book_id, toc_url, total, created_at) VALUES (?,?,?,?)').run(
       bookId,
@@ -720,8 +764,9 @@ export function appendChapters(
     const ins = d.prepare('INSERT INTO chapters (book_id, idx, title, content, url) VALUES (?,?,?,?,?)')
     items.forEach((it, i) => ins.run(bookId, startIndex + i, it.title, it.content, it.url))
     d.prepare(
-      "UPDATE books SET total_chapters = (SELECT COUNT(*) FROM chapters WHERE book_id = ? AND deleted = 0) WHERE id = ?"
-    ).run(bookId, bookId)
+      `UPDATE books SET total_chapters = (SELECT COUNT(*) FROM chapters WHERE book_id = ? AND deleted = 0),
+              chapters_rev = chapters_rev + 1, updated_at = ? WHERE id = ?`
+    ).run(bookId, Date.now(), bookId)
   })
   tx()
 }
@@ -739,8 +784,8 @@ export function resetNovelChapters(bookId: number): void {
   const tx = d.transaction(() => {
     d.prepare('DELETE FROM chapters WHERE book_id = ?').run(bookId)
     d.prepare(
-      "UPDATE books SET total_chapters = 0, current_chapter = 0, progress = 0, chapter_label = '', cfi = '' WHERE id = ?"
-    ).run(bookId)
+      "UPDATE books SET total_chapters = 0, current_chapter = 0, progress = 0, chapter_label = '', cfi = '', chapters_rev = chapters_rev + 1, updated_at = ? WHERE id = ?"
+    ).run(Date.now(), bookId)
     d.prepare("UPDATE novel_sources SET cursor_url = '', fetched = 0, total = 0, status = '' WHERE book_id = ?").run(
       bookId
     )
@@ -763,7 +808,9 @@ export function setBookChapterCount(bookId: number): void {
 }
 
 export function setBookMeta(bookId: number, title: string, author: string): void {
-  getDb().prepare('UPDATE books SET title = ?, author = ? WHERE id = ?').run(title, author, bookId)
+  getDb()
+    .prepare('UPDATE books SET title = ?, author = ?, updated_at = ? WHERE id = ?')
+    .run(title, author, Date.now(), bookId)
 }
 
 /* ---------- 章节管理（软删 / 重命名 / 内容编辑 / 合并 / 插入） ---------- */
@@ -788,15 +835,28 @@ export function insertChapter(bookId: number, atIdx: number, title: string, cont
       d.prepare('UPDATE books SET current_chapter = current_chapter + 1 WHERE id = ?').run(bookId)
     }
     setBookChapterCount(bookId)
+    d.prepare('UPDATE books SET chapters_rev = chapters_rev + 1, updated_at = ? WHERE id = ?').run(
+      Date.now(),
+      bookId
+    )
   })
   tx()
   return atIdx
 }
 
 export function renameChapter(bookId: number, idx: number, title: string): void {
-  getDb()
-    .prepare('UPDATE chapters SET title = ? WHERE book_id = ? AND idx = ?')
-    .run(title.slice(0, 60), bookId, idx)
+  const d = getDb()
+  d.transaction(() => {
+    d.prepare('UPDATE chapters SET title = ? WHERE book_id = ? AND idx = ?').run(
+      title.slice(0, 60),
+      bookId,
+      idx
+    )
+    d.prepare('UPDATE books SET chapters_rev = chapters_rev + 1, updated_at = ? WHERE id = ?').run(
+      Date.now(),
+      bookId
+    )
+  })()
 }
 
 /** 软删：TOC/阅读/导出全部过滤；增量更新遇到 deleted=1 的 URL 跳过（防复活） */
@@ -805,15 +865,28 @@ export function softDeleteChapter(bookId: number, idx: number): void {
   const tx = d.transaction(() => {
     d.prepare('UPDATE chapters SET deleted = 1 WHERE book_id = ? AND idx = ?').run(bookId, idx)
     setBookChapterCount(bookId)
+    d.prepare('UPDATE books SET chapters_rev = chapters_rev + 1, updated_at = ? WHERE id = ?').run(
+      Date.now(),
+      bookId
+    )
   })
   tx()
 }
 
 /** 内容编辑：写正文并打 content_edited=1（增量更新不覆盖） */
 export function editChapterContent(bookId: number, idx: number, content: string): void {
-  getDb()
-    .prepare('UPDATE chapters SET content = ?, content_edited = 1 WHERE book_id = ? AND idx = ?')
-    .run(content, bookId, idx)
+  const d = getDb()
+  d.transaction(() => {
+    d.prepare('UPDATE chapters SET content = ?, content_edited = 1 WHERE book_id = ? AND idx = ?').run(
+      content,
+      bookId,
+      idx
+    )
+    d.prepare('UPDATE books SET chapters_rev = chapters_rev + 1, updated_at = ? WHERE id = ?').run(
+      Date.now(),
+      bookId
+    )
+  })()
 }
 
 /** 合并到上一章：上一未删章正文追加本章，本章软删 */
@@ -835,6 +908,10 @@ export function mergeChapterUp(bookId: number, idx: number): boolean {
     )
     d.prepare('UPDATE chapters SET deleted = 1 WHERE book_id = ? AND idx = ?').run(bookId, idx)
     setBookChapterCount(bookId)
+    d.prepare('UPDATE books SET chapters_rev = chapters_rev + 1, updated_at = ? WHERE id = ?').run(
+      Date.now(),
+      bookId
+    )
   })
   tx()
   return true
@@ -859,6 +936,10 @@ export function markDuplicates(bookId: number): number {
         n++
       }
     }
+    d.prepare('UPDATE books SET chapters_rev = chapters_rev + 1, updated_at = ? WHERE id = ?').run(
+      Date.now(),
+      bookId
+    )
   })
   tx()
   return n
@@ -953,6 +1034,8 @@ export function updateBook(
     args.push(patch.downloadUrl.trim())
   }
   if (!sets.length) return true
+  sets.push('updated_at = ?')
+  args.push(Date.now())
   d.prepare(`UPDATE books SET ${sets.join(', ')} WHERE id = ?`).run(...args, bookId)
   return true
 }
@@ -960,5 +1043,122 @@ export function updateBook(
 /** 封面落库（文件由 main 侧 copy 到 covers/ 后调这里） */
 export function setBookCover(bookId: number, coverPath: string): void {
   const d = getDb()
-  d.prepare('UPDATE books SET cover_path = ? WHERE id = ?').run(coverPath, bookId)
+  d.prepare('UPDATE books SET cover_path = ?, updated_at = ? WHERE id = ?').run(
+    coverPath,
+    Date.now(),
+    bookId
+  )
+}
+
+/* ---------- 设备同步（v2.2 M-B）---------- */
+
+export interface SyncBookRow {
+  uuid: string
+  title: string
+  author: string
+  format: string
+  coverIdx: number
+  coverPath: string
+  progress: number
+  chapterLabel: string
+  totalChapters: number
+  currentChapter: number
+  sortAt: number
+  updatedAt: number
+  chaptersRev: number
+}
+
+/** 手机拉书架：updated_at > since 的书（since=0 全量），不含章节正文 */
+export function listSyncBooks(since: number): SyncBookRow[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT sync_uuid, title, author, format, cover_idx, cover_path, progress, chapter_label,
+              total_chapters, current_chapter, sort_at, updated_at, chapters_rev
+       FROM books WHERE updated_at > ? ORDER BY sort_at DESC`
+    )
+    .all(since) as Record<string, unknown>[]
+  return rows.map((r) => ({
+    uuid: String(r.sync_uuid),
+    title: String(r.title),
+    author: String(r.author),
+    format: String(r.format),
+    coverIdx: Number(r.cover_idx),
+    coverPath: String(r.cover_path),
+    progress: Number(r.progress),
+    chapterLabel: String(r.chapter_label),
+    totalChapters: Number(r.total_chapters),
+    currentChapter: Number(r.current_chapter),
+    sortAt: Number(r.sort_at),
+    updatedAt: Number(r.updated_at),
+    chaptersRev: Number(r.chapters_rev)
+  }))
+}
+
+export function listTombstones(since: number): { uuid: string; deletedAt: number }[] {
+  const rows = getDb()
+    .prepare('SELECT uuid, deleted_at FROM mozhi_tombstones WHERE deleted_at > ?')
+    .all(since) as { uuid: string; deleted_at: number }[]
+  return rows.map((r) => ({ uuid: r.uuid, deletedAt: Number(r.deleted_at) }))
+}
+
+/** 手机拉章节：按书 uuid 整集分页（含软删标记，手机端据此过滤） */
+export function listSyncChapters(
+  uuid: string,
+  offset: number,
+  limit: number
+): { rows: { idx: number; title: string; content: string; deleted: number; dup: number }[]; total: number } {
+  const d = getDb()
+  const book = d.prepare('SELECT id FROM books WHERE sync_uuid = ?').get(uuid) as
+    | { id: number }
+    | undefined
+  if (!book) return { rows: [], total: 0 }
+  const total = (d.prepare('SELECT COUNT(*) AS n FROM chapters WHERE book_id = ?').get(book.id) as { n: number }).n
+  const rows = d
+    .prepare(
+      'SELECT idx, title, content, deleted, dup FROM chapters WHERE book_id = ? ORDER BY idx LIMIT ? OFFSET ?'
+    )
+    .all(book.id, limit, offset) as { idx: number; title: string; content: string; deleted: number; dup: number }[]
+  return { rows, total }
+}
+
+export interface PhoneProgressEntry {
+  uuid: string
+  progress: number
+  currentChapter: number
+  chapterLabel: string
+  updatedAt: number
+}
+
+/** 手机推进度：按书 last-writer-wins（updated_at 新者胜；时钟偏移由手机端校准后上报） */
+export function applyPhoneProgress(entries: PhoneProgressEntry[]): { applied: number; rejected: number } {
+  const d = getDb()
+  let applied = 0
+  let rejected = 0
+  const get = d.prepare('SELECT id, updated_at FROM books WHERE sync_uuid = ?')
+  const upd = d.prepare(
+    'UPDATE books SET progress = ?, current_chapter = ?, chapter_label = ?, updated_at = ? WHERE id = ?'
+  )
+  const tx = d.transaction(() => {
+    for (const e of entries) {
+      const row = get.get(e.uuid) as { id: number; updated_at: number } | undefined
+      if (!row) {
+        rejected++
+        continue
+      }
+      if (e.updatedAt > row.updated_at) {
+        upd.run(
+          Math.max(0, Math.min(100, e.progress)),
+          Math.max(0, Math.floor(e.currentChapter)),
+          String(e.chapterLabel || '').slice(0, 40),
+          e.updatedAt,
+          row.id
+        )
+        applied++
+      } else {
+        rejected++
+      }
+    }
+  })
+  tx()
+  return { applied, rejected }
 }
