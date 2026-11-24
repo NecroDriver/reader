@@ -137,7 +137,7 @@ export default function LoginScreen({ onDone }: { onDone: () => void }) {
                   setCreating(false)
                 }}
               >
-                <span className="seal-name">{a.name}</span>
+                <span className={`seal-name${/[\u3400-\u9fff\uF900-\uFAFF]/.test(a.name) ? ' vert' : ''}`}>{a.name}</span>
                 <span className="seal-sub">{a.hasPassword ? '口令进入' : '游客 · 直接进入'}</span>
                 {a.id === lastUsedId && <span className="seal-last">上次使用</span>}
               </button>

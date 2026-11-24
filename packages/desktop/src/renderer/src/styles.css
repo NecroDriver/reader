@@ -1023,8 +1023,12 @@ body.dropping .drop-overlay { display: flex; }
 .seal-card.picked { background: var(--seal); color: var(--seal-fg); }
 .seal-name {
   font-family: var(--font-serif); font-size: 17px; letter-spacing: .1em;
+  max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* 中文名保持印章竖排；拉丁名横排更易读 */
+.seal-name.vert {
   writing-mode: vertical-rl; text-orientation: upright;
-  max-height: 118px; line-height: 1.25; overflow: hidden;
+  max-width: none; max-height: 118px; line-height: 1.25; white-space: normal;
 }
 .seal-sub { font-size: 10.5px; letter-spacing: .08em; opacity: .78; }
 .seal-last { margin-top: 4px; font-family: var(--font-latin); font-size: 9.5px; letter-spacing: .1em; color: var(--seal); text-transform: uppercase; opacity: .9; }
