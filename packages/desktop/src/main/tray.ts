@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { getSetting, setSetting } from './db'
 import { updateAllNovels } from './novelJob'
 import { bossKeyState } from './boss'
-import { getActiveAccount, hasEnvOverride } from './accounts'
+import { getActiveAccount, hasEnvOverride, isGuestActive } from './accounts'
 
 let tray: Tray | null = null
 let quitting = false
@@ -45,7 +45,7 @@ export function createTray(getWin: () => BrowserWindow | null): void {
       click: () => {
         void (async () => {
           /* 登录页阶段没有账号库，不更新 */
-          if (!(hasEnvOverride() || getActiveAccount())) return
+          if (!(hasEnvOverride() || getActiveAccount() || isGuestActive())) return
           const r = await updateAllNovels()
           const pad = (n: number): string => String(n).padStart(2, '0')
           const d = new Date()

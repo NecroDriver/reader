@@ -71,14 +71,29 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
   const [menuBookId, setMenuBookId] = useState<number | null>(null)
   const [confirmDelId, setConfirmDelId] = useState<number | null>(null)
   const [detailBookId, setDetailBookId] = useState<number | null>(null)
-  /* 当前账号（设置页展示；env 直通为 null） */
+  /* 当前账号（设置页展示；env 直通为 null）；游客模式功能受限 */
   const [accountName, setAccountName] = useState<string | null>(null)
+  const [isGuest, setIsGuest] = useState(false)
   useEffect(() => {
     void (async () => {
       const s = await window.mozhi?.getSession()
-      if (s && s.mode === 'app') setAccountName(s.account?.name ?? null)
+      if (s && s.mode === 'app') {
+        setAccountName(s.account?.name ?? null)
+        setIsGuest(s.guest)
+      }
     })()
   }, [])
+
+  /* 游客功能闸：受限功能触发时提示并跳回登录/注册页 */
+  const guestGate = (what: string): boolean => {
+    if (!isGuest) return false
+    pushToast(`游客模式下不可使用「${what}」，请注册账号`)
+    void (async () => {
+      await window.mozhi?.logout()
+      onLogout()
+    })()
+    return true
+  }
 
   /* 老板键录制：capture 阶段捕获组合键，Esc 取消 */
   useEffect(() => {
@@ -256,13 +271,15 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
 
   const pickImport = useCallback(async () => {
     if (!window.mozhi) return
+    if (guestGate('导入图书')) return
     handleImport(await window.mozhi.pickAndImport())
-  }, [handleImport])
+  }, [handleImport, isGuest])
 
   /* ---------- 更新全部在线小说 ---------- */
 
   const updateAll = useCallback(async () => {
     if (!window.mozhi || updatingAll) return
+    if (guestGate('更新全部')) return
     setUpdatingAll(true)
     try {
       const r = await window.mozhi.updateAllNovels()
@@ -280,7 +297,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
     } finally {
       setUpdatingAll(false)
     }
-  }, [pushToast, reloadShelf, updatingAll])
+  }, [pushToast, reloadShelf, updatingAll, isGuest])
 
   useEffect(() => {
     if (window.mozhi) {
@@ -341,6 +358,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
   /* ---------- 在线小说 ---------- */
   const submitNovel = useCallback(async () => {
     if (!window.mozhi || novelBusy) return
+    if (guestGate('添加小说')) return
     const url = novelUrl.trim()
     if (!url) {
       setNovelErr('请填写小说目录页地址')
@@ -386,7 +404,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
     } finally {
       setNovelBusy(false)
     }
-  }, [novelBusy, novelUrl, pushToast])
+  }, [novelBusy, novelUrl, pushToast, isGuest])
 
   const onlineCount = shelf?.books.filter((b) => b.format === 'NOVEL').length ?? 0
 
@@ -430,17 +448,23 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
         >
           {navCollapsed ? ExpandIcon : CollapseIcon}
         </button>
-        {accountName &&
+        {(accountName || isGuest) &&
           (navCollapsed ? (
-            <span className="side-account collapsed" title={`当前账号：${accountName}`}>
-              <span className="side-account-mark">{accountName.slice(0, 1)}</span>
+            <span
+              className={'side-account collapsed' + (isGuest ? ' guest' : '')}
+              title={isGuest ? '游客模式 · 功能受限' : `当前账号：${accountName}`}
+            >
+              <span className="side-account-mark">{isGuest ? '客' : accountName!.slice(0, 1)}</span>
             </span>
           ) : (
-            <div className="side-account" title={`当前账号：${accountName}`}>
-              <span className="side-account-mark">{accountName.slice(0, 1)}</span>
+            <div
+              className={'side-account' + (isGuest ? ' guest' : '')}
+              title={isGuest ? '游客模式 · 功能受限' : `当前账号：${accountName}`}
+            >
+              <span className="side-account-mark">{isGuest ? '客' : accountName!.slice(0, 1)}</span>
               <span className="side-account-text">
-              <strong>{accountName}</strong>
-              <em>的书房</em>
+              <strong>{isGuest ? '游客' : accountName}</strong>
+              <em>{isGuest ? '功能受限' : '的书房'}</em>
               </span>
             </div>
           ))}
@@ -711,16 +735,14 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
             <div className="settings-groups">
               <div className="settings-group">
                 <p className="group-eyebrow">ACCOUNT · 账号</p>
-                <div className="profile-card">
-                  <span className="profile-mark">{(accountName ?? '墨').slice(0, 1)}</span>
-                  <div className="profile-info">
-                    <strong>{accountName ?? '环境直通（开发模式）'}</strong>
-                    <span className="mono-path">
-                      {dataDirInfo ? dataDirInfo.custom ?? dataDirInfo.defaultDir : ''}
-                    </span>
-                    <span>独立书库 · 账号级数据隔离</span>
-                  </div>
-                  {accountName && (
+                {isGuest ? (
+                  <div className="profile-card guest">
+                    <span className="profile-mark">客</span>
+                    <div className="profile-info">
+                      <strong>游客</strong>
+                      <span>仅可浏览与阅读演示书库 · 数据不长期保留</span>
+                      <span className="guest-note">云同步 / 导入图书 / 在线小说等功能需注册账号</span>
+                    </div>
                     <button
                       type="button"
                       className="btn ghost profile-logout"
@@ -731,13 +753,63 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                         })()
                       }}
                     >
-                      退出登录
+                      注册 / 登录账号
                     </button>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="profile-card">
+                    <span className="profile-mark">{(accountName ?? '墨').slice(0, 1)}</span>
+                    <div className="profile-info">
+                      <strong>{accountName ?? '环境直通（开发模式）'}</strong>
+                      <span className="mono-path">
+                        {dataDirInfo ? dataDirInfo.custom ?? dataDirInfo.defaultDir : ''}
+                      </span>
+                      <span>独立书库 · 账号级数据隔离</span>
+                    </div>
+                    {accountName && (
+                      <button
+                        type="button"
+                        className="btn ghost profile-logout"
+                        onClick={() => {
+                          void (async () => {
+                            await window.mozhi?.logout()
+                            onLogout()
+                          })()
+                        }}
+                      >
+                        退出登录
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <CloudSyncPanel onChanged={(m) => pushToast(m)} />
+              {isGuest ? (
+                <div className="settings-group">
+                  <p className="group-eyebrow">CLOUD SYNC · 云同步</p>
+                  <div className="guest-lock">
+                    <span className="guest-lock-mark">锁</span>
+                    <div className="guest-lock-info">
+                      <strong>游客模式下不可用</strong>
+                      <span>注册账号后可配置 WebDAV / S3 兼容存储，手动上传与恢复快照。</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => {
+                        void (async () => {
+                          await window.mozhi?.logout()
+                          onLogout()
+                        })()
+                      }}
+                    >
+                      注册 / 登录账号
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <CloudSyncPanel onChanged={(m) => pushToast(m)} />
+              )}
 
               <div className="settings-group">
                 <p className="group-eyebrow">APPEARANCE · 外观</p>

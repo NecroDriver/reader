@@ -199,7 +199,7 @@ export default function LoginScreen({ onDone }: { onDone: () => void }) {
         <div className="login-create">
           {!creating ? (
             <button type="button" className="btn ghost login-create-btn" onClick={() => { setCreating(true); setErr('') }}>
-              {PlusIcon} 新建账号
+              {PlusIcon} 注册新账号
             </button>
           ) : (
             <form
@@ -299,6 +299,28 @@ export default function LoginScreen({ onDone }: { onDone: () => void }) {
           每个账号拥有独立的书库与数据目录；可在「设置 · 云同步」中配置 WebDAV / S3
           兼容存储，手动上传与恢复快照。
         </p>
+
+        <div className="login-guest">
+          <button
+            type="button"
+            className="login-guest-btn"
+            disabled={busy}
+            onClick={async () => {
+              setErr('')
+              setBusy(true)
+              const r = await window.mozhi.enterGuest()
+              setBusy(false)
+              if (!r.ok) {
+                setErr(r.error)
+                return
+              }
+              onDone()
+            }}
+          >
+            先逛逛 · 游客进入
+          </button>
+          <p className="login-guest-hint">游客仅可浏览与阅读演示书库；云同步等功能需注册账号。</p>
+        </div>
       </div>
     </div>
   )

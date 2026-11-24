@@ -205,14 +205,15 @@ const api = {
   saveProxy: (url: string, on: boolean): Promise<boolean> => ipcRenderer.invoke('proxy:save', url, on),
   testProxy: (): Promise<{ ok: boolean; status?: number; error?: string }> => ipcRenderer.invoke('proxy:test'),
 
-  /* 账号与会话（本地多账号，数据隔离） */
+  /* 账号与会话（注册账号 + 游客，数据隔离） */
   getSession: (): Promise<
-    | { mode: 'app'; env: boolean; account: { id: string; name: string } | null }
+    | { mode: 'app'; env: boolean; guest: boolean; account: { id: string; name: string } | null }
     | { mode: 'login'; env: false; accounts: { id: string; name: string; hasPassword: boolean; lastUsedAt: string; active: boolean }[] }
   > => ipcRenderer.invoke('session:current'),
   listAccounts: (): Promise<
     { id: string; name: string; hasPassword: boolean; lastUsedAt: string; active: boolean }[]
   > => ipcRenderer.invoke('accounts:list'),
+  enterGuest: (): Promise<{ ok: true } | { ok: false; error: string }> => ipcRenderer.invoke('session:guest'),
   loginAccount: (
     id: string,
     password: string,

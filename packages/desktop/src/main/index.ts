@@ -63,11 +63,13 @@ import {
 } from './tray'
 import {
   activateAccount,
+  activateGuest,
   clearRemember,
   createAndActivate,
   deactivateAccount,
   getActiveAccount,
   getAccountDataDir,
+  isGuestActive,
   listAccounts,
   setAccountDataDir,
   startupSession,
@@ -543,11 +545,24 @@ void (async (): Promise<void> => {
   ipcMain.handle('session:current', () => {
     if (bootSession.mode === 'env' || sessionActive) {
       const a = getActiveAccount()
-      return { mode: 'app' as const, env: bootSession.mode === 'env', account: a ? { id: a.id, name: a.name } : null }
+      return {
+        mode: 'app' as const,
+        env: bootSession.mode === 'env',
+        guest: !a && bootSession.mode !== 'env' && isGuestActive(),
+        account: a ? { id: a.id, name: a.name } : null
+      }
     }
     return { mode: 'login' as const, env: false, accounts: listAccounts() }
   })
   ipcMain.handle('accounts:list', () => listAccounts())
+  ipcMain.handle('session:guest', () => {
+    const err = activateGuest()
+    if (err) return { ok: false as const, error: err }
+    sessionActive = true
+    onSessionReady()
+    logEvent('app', 'info', '以游客身份进入（功能受限）')
+    return { ok: true as const }
+  })
   ipcMain.handle('session:login', (_e, id: string, password: string, remember: boolean) => {
     const err = activateAccount(id, password ?? '')
     if (err) return { ok: false as const, error: err }

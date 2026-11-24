@@ -1,11 +1,12 @@
 /**
- * 本地多账号体系：账号注册表 + 数据隔离 + 可选本地口令。
+ * 本地账号体系：注册账号 + 游客双轨。
  *
  * - 注册表 accounts.json 永远放在默认 userData 基座（defaultDataDir()），不随账号目录移动。
- * - 每个账号独立数据目录：自定义 dataDir 或 基座/accounts/<id>/，内含 mozhi.db、covers、logs。
- * - 口令为「本地应用锁」（scrypt 哈希校验），不做磁盘加密——UI 文案如实说明。
+ * - 每个注册账号独立数据目录：自定义 dataDir 或 基座/accounts/<id>/，内含 mozhi.db、covers、logs。
+ * - 口令为「本地应用锁」（scrypt 哈希校验，≥4 位必填），不做磁盘加密——UI 文案如实说明。
+ * - 游客：非持久身份（不进注册表），使用 基座/accounts/guest/ 演示沙盒库（首开播种演示书）；
+ *   仅可浏览与阅读，云同步/添加小说/更新全部等大部分功能受限并引导注册。
  * - MOZHI_DATA_DIR 环境变量存在时完全绕过账号体系（自动化测试用）。
- * - 首次升级迁移：读旧 mozhi.config.json 的 dataDir 生成「主账号」，不搬数据、行为兼容。
  */
 import { app, safeStorage } from 'electron'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -37,10 +38,6 @@ interface Registry {
   accounts: AccountRecord[]
 }
 
-interface LegacyConfig {
-  dataDir?: string
-}
-
 function nowIso(): string {
   return new Date().toISOString()
 }
@@ -56,37 +53,11 @@ function readRegistry(): Registry {
     const parsed = JSON.parse(text) as Registry
     if (Array.isArray(parsed.accounts)) return parsed
   } catch {
-    /* 首次或损坏 → 迁移重建 */
+    /* 首次或损坏 → 空注册表（不再自动创建「主账号」） */
   }
-  return migrateFromLegacy()
-}
-
-/** 旧版（0.1.x 单用户）→ 账号体系一次性迁移：主账号沿用原数据目录 */
-function migrateFromLegacy(): Registry {
-  const reg: Registry = { version: 1, activeId: null, accounts: [] }
-  let legacy: LegacyConfig = {}
-  try {
-    let text = readFileSync(join(defaultDataDir(), 'mozhi.config.json'), 'utf-8')
-    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1)
-    legacy = JSON.parse(text) as LegacyConfig
-  } catch {
-    /* 无旧配置 */
-  }
-  const base = defaultDataDir()
-  const dataDir = legacy.dataDir && legacy.dataDir !== base ? legacy.dataDir : null
-  reg.accounts.push({
-    id: 'default',
-    name: '主账号',
-    createdAt: nowIso(),
-    lastUsedAt: nowIso(),
-    dataDir,
-    passwordHash: null,
-    salt: null,
-    fresh: false
-  })
-  /* activeId 留空：升级后首次启动展示登录页（点一下即入），此后自动进入 */
-  saveRegistry(reg)
-  return reg
+  const fresh: Registry = { version: 1, activeId: null, accounts: [] }
+  saveRegistry(fresh)
+  return fresh
 }
 
 function saveRegistry(reg: Registry): void {
@@ -252,8 +223,36 @@ export function deactivateAccount(): void {
   const r = reg()
   r.activeId = null
   saveRegistry(r)
+  guestActive = false
   closeDb()
   app.setPath('userData', defaultDataDir())
+}
+
+/* ---------- 游客模式：非持久身份，基座/accounts/guest/ 演示沙盒 ---------- */
+
+let guestActive = false
+
+export function isGuestActive(): boolean {
+  return guestActive
+}
+
+/** 以游客身份进入：演示沙盒库（首开播种演示书），不写注册表、不持久（重启回登录页）。 */
+export function activateGuest(): string | null {
+  const dir = join(defaultDataDir(), 'accounts', 'guest')
+  try {
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    /* 沙盒无库时播种演示书（与首次安装体验一致） */
+    if (!existsSync(join(dir, DB_NAME))) setSeedPolicy('demo')
+  } catch {
+    return '游客目录不可用：' + dir
+  }
+  closeDb()
+  app.setPath('userData', dir)
+  const r = reg()
+  r.activeId = null
+  saveRegistry(r)
+  guestActive = true
+  return null
 }
 
 /** 新建账号并登录：全新空库（跳过演示种子）。返回错误或 null。 */
@@ -262,18 +261,19 @@ export function createAndActivate(name: string, password: string): string | null
   const trimmed = name.trim()
   if (!trimmed) return '请填写账号名称'
   if (trimmed.length > 24) return '账号名称过长（≤24 字）'
+  if (trimmed === '游客') return '该名字保留给游客模式'
   if (r.accounts.some((a) => a.name === trimmed)) return '已有同名账号'
-  if (password && password.length < 4) return '口令至少 4 位'
+  if (!password || password.length < 4) return '口令至少 4 位'
 
   const id = randomBytes(6).toString('hex')
-  const salt = password ? randomBytes(16).toString('hex') : null
+  const salt = randomBytes(16).toString('hex')
   const account: AccountRecord = {
     id,
     name: trimmed,
     createdAt: nowIso(),
     lastUsedAt: nowIso(),
     dataDir: null,
-    passwordHash: password ? hashPassword(password, salt as string) : null,
+    passwordHash: hashPassword(password, salt),
     salt,
     fresh: true
   }

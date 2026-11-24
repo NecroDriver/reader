@@ -1158,3 +1158,105 @@ body.dropping .drop-overlay { display: flex; }
 .phone-progress-row input[type='checkbox']{width:15px;height:15px;accent-color:var(--seal);flex:none}
 .phone-progress-title{flex:1;min-width:0;font-family:var(--font-serif);font-size:13.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .phone-progress-ch{font-family:var(--font-latin);font-size:12px;color:var(--ink-2);flex:none}
+
+/* ---------- 游客模式（注册账号 + 游客双轨） ---------- */
+.login-guest {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.login-guest-btn {
+  border: none;
+  background: none;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  border-bottom: 1px dashed var(--line-strong);
+  transition: color .15s var(--ease), border-color .15s var(--ease);
+}
+.login-guest-btn:hover:enabled,
+.login-guest-btn:focus-visible {
+  color: var(--seal);
+  border-bottom-color: var(--seal);
+}
+.login-guest-btn:disabled {
+  opacity: .5;
+  cursor: default;
+}
+.login-guest-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: center;
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+.side-account.guest .side-account-mark {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px dashed var(--line-strong);
+}
+.side-account.guest strong { color: var(--ink-2); }
+.side-account.guest em { color: var(--muted); }
+
+.profile-card.guest {
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+}
+.profile-card.guest .profile-mark {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px dashed var(--line-strong);
+}
+.profile-card.guest .guest-note {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.guest-lock {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.guest-lock-mark {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  color: var(--muted);
+  border: 1px dashed var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+.guest-lock-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.guest-lock-info strong {
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.guest-lock-info span {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-guest-btn { transition: none; }
+}

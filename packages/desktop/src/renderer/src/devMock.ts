@@ -550,9 +550,9 @@ export function setupDevMock(): void {
       return new Promise((r) => setTimeout(() => r({ ok: mockProxy.on && !!mockProxy.url, status: 204 }), 800))
     },
 
-    /* 账号与会话（mock）：默认两账号，主账号带口令；「记住我」用 localStorage 模拟本机凭据 */
+    /* 账号与会话（mock）：注册账号 + 游客双轨；「记住我」用 localStorage 模拟本机凭据 */
     getSession: () => {
-      if (!mockSession.account) {
+      if (!mockSession.account && !mockSession.guest) {
         const rid = localStorage.getItem('mozhi-mock-remember')
         const a = rid ? mockAccounts.find((x) => x.id === rid) : undefined
         if (a) {
@@ -562,11 +562,19 @@ export function setupDevMock(): void {
       }
       return Promise.resolve(
         mockSession.account
-          ? { mode: 'app', env: false, account: { ...mockSession.account } }
-          : { mode: 'login', env: false, accounts: mockAccounts.map(accView) }
+          ? { mode: 'app', env: false, guest: false, account: { ...mockSession.account } }
+          : mockSession.guest
+            ? { mode: 'app', env: false, guest: true, account: null }
+            : { mode: 'login', env: false, accounts: mockAccounts.map(accView) }
       )
     },
     listAccounts: () => Promise.resolve(mockAccounts.map(accView)),
+    enterGuest: () => {
+      mockSession.guest = true
+      mockSession.account = null
+      console.log('[devMock] enterGuest')
+      return Promise.resolve({ ok: true } as const)
+    },
     loginAccount: (id: string, password: string, remember: boolean) => {
       const a = mockAccounts.find((x) => x.id === id)
       if (!a) return Promise.resolve({ ok: false, error: '账号不存在' })
@@ -592,6 +600,7 @@ export function setupDevMock(): void {
     logout: () => {
       localStorage.removeItem('mozhi-mock-remember')
       mockSession.account = null
+      mockSession.guest = false
       console.log('[devMock] logout')
       return Promise.resolve({ ok: true })
     },
@@ -692,7 +701,7 @@ const mockAccounts: MockAccount[] = [
   { id: 'main', name: '主账号', hasPassword: true, lastUsedAt: '昨天 21:04', active: false },
   { id: 'second', name: '书房客', hasPassword: false, lastUsedAt: '11-18 09:12', active: false }
 ]
-const mockSession = { account: null as { id: string; name: string } | null }
+const mockSession = { account: null as { id: string; name: string } | null, guest: false }
 const mockCloud = {
   enabled: false,
   provider: 'webdav' as 'webdav' | 's3',
