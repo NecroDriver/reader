@@ -280,7 +280,7 @@ export function LoginScreen({
         </View>
       )}
 
-      <Text style={s.foot}>每个账号拥有独立的书库；可在「设置 · 云同步」里配置 WebDAV，从桌面端快照恢复藏书。</Text>
+      <Text style={s.foot}>账号为本机独立账号，不与桌面端互通；桌面端的书库，登录后在「设置 · 云同步」配置 WebDAV 下载快照即可获得。</Text>
 
       <Pressable
         style={s.guestLink}

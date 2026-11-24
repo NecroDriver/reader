@@ -411,9 +411,20 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="app">
       <aside className={'sidebar' + (navCollapsed ? ' collapsed' : '')}>
-        <div className="brand">
-          <span className="brand-zh">{navCollapsed ? '墨' : '墨纸'}</span>
-          {!navCollapsed && <span className="brand-latin">Mozhi Reader</span>}
+        <div className="brand-row">
+          <div className="brand">
+            <span className="brand-zh">{navCollapsed ? '墨' : '墨纸'}</span>
+            {!navCollapsed && <span className="brand-latin">Mozhi Reader</span>}
+          </div>
+          {!navCollapsed && (
+            <button
+              className="nav-toggle"
+              onClick={toggleNav}
+              title="收起侧栏"
+            >
+              {CollapseIcon}
+            </button>
+          )}
         </div>
         <nav className="nav">
           <button
@@ -441,13 +452,15 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
             {!navCollapsed && <span>设置</span>}
           </button>
         </nav>
-        <button
-          className="nav-toggle"
-          onClick={toggleNav}
-          title={navCollapsed ? '展开侧栏' : '收起侧栏'}
-        >
-          {navCollapsed ? ExpandIcon : CollapseIcon}
-        </button>
+        {navCollapsed && (
+          <button
+            className="nav-toggle"
+            onClick={toggleNav}
+            title="展开侧栏"
+          >
+            {ExpandIcon}
+          </button>
+        )}
         {(accountName || isGuest) &&
           (navCollapsed ? (
             <span
