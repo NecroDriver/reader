@@ -16,13 +16,6 @@ function mapBook(r: any) {
     coverPath: (r.cover_path ?? '') as string
   }
 }
-function mapArticle(r: any) {
-  return { id: r.id, title: r.title, source: r.source, sourceId: r.source_id ?? 0, url: r.url ?? '', author: r.author ?? '', publishedAt: r.published_at, unread: !!r.unread, progress: r.progress, isNew: !!r.is_new, sortAt: r.sort_at }
-}
-function mapSource(r: any) {
-  return { id: r.id, name: r.name, url: r.url, type: r.type, intervalMinutes: r.interval_minutes, lastPullAt: r.last_pull_at, lastCount: r.last_count, enabled: !!r.enabled }
-}
-
 export interface ImportOutcome {
   ok: boolean
   bookId?: number
@@ -57,8 +50,6 @@ const api = {
     const s = await ipcRenderer.invoke('library:getShelf')
     return {
       books: (s.books || []).map(mapBook),
-      articles: (s.articles || []).map(mapArticle),
-      sources: (s.sources || []).map(mapSource),
       lastSyncAt: s.last_sync_at
     }
   },
@@ -130,52 +121,15 @@ const api = {
     ipcRenderer.invoke('cover:pick', bookId),
   clearCover: (bookId: number): Promise<boolean> => ipcRenderer.invoke('cover:clear', bookId),
 
-  /* 订阅源 */
-  addSource: (input: { name: string; url: string; type: string; intervalMinutes: number }): Promise<{
-    id: number
-    name: string
-    url: string
-    type: string
-    intervalMinutes: number
-    lastPullAt: string | null
-    lastCount: number
-    enabled: boolean
-  }> => ipcRenderer.invoke('source:add', input),
-  updateSource: (
-    id: number,
-    patch: { intervalMinutes?: number; enabled?: boolean; name?: string }
-  ): Promise<void> => ipcRenderer.invoke('source:update', id, patch),
-  removeSource: (id: number): Promise<void> => ipcRenderer.invoke('source:remove', id),
-  pullSource: (id: number): Promise<{ ok: boolean; sourceId: number; sourceName: string; added: number; error?: string }> =>
-    ipcRenderer.invoke('source:pull', id),
-  pullAllSources: (): Promise<
-    { ok: boolean; sourceId: number; sourceName: string; added: number; error?: string }[]
-  > => ipcRenderer.invoke('sources:pullAll'),
+  /* 同步记录 + 更新全部 */
   getPullLogs: (): Promise<
     { at: string; name: string; added: number; ok: boolean; error?: string }[]
   > => ipcRenderer.invoke('sync:getLogs'),
-  onSyncProgress: (
-    cb: (p: { done: number; total: number; name: string; finished: boolean }) => void
-  ): (() => void) => {
-    const listener = (_e: unknown, p: { done: number; total: number; name: string; finished: boolean }): void =>
-      cb(p)
-    ipcRenderer.on('sync:progress', listener)
-    return () => ipcRenderer.removeListener('sync:progress', listener)
-  },
-
-  /* 文章 */
-  openArticle: (id: number): Promise<{
-    id: number
-    title: string
-    source: string
-    author: string
-    publishedAt: string
-    url: string
-    contentHtml: string
-    progress: number
-  } | null> => ipcRenderer.invoke('article:open', id),
-  saveArticleProgress: (id: number, pct: number): Promise<void> =>
-    ipcRenderer.invoke('article:saveProgress', id, pct),
+  updateAllNovels: (): Promise<{
+    checked: number
+    updatedBooks: number
+    addedChapters: number
+  }> => ipcRenderer.invoke('novels:updateAll'),
 
   /* 设置与数据管理 */
   getSettings: (): Promise<{
@@ -191,7 +145,6 @@ const api = {
     ipcRenderer.invoke('boss:resetKey'),
   setSetting: (key: 'autostart' | 'close_to_tray' | 'pull_on_start', value: boolean): Promise<void> =>
     ipcRenderer.invoke('settings:set', key, value),
-  clearArticles: (): Promise<boolean> => ipcRenderer.invoke('data:clearArticles'),
   getDataDirInfo: (): Promise<{ current: string; defaultDir: string; custom: string | null }> =>
     ipcRenderer.invoke('data:getDirInfo'),
   pickDataDir: (): Promise<{ canceled: true } | { canceled: false; dir: string }> =>

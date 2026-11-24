@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, Notification, Tray, nativeImage, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { getSetting, setSetting } from './db'
-import { pullAllSources } from './sync'
+import { updateAllNovels } from './novelJob'
 import { bossKeyState } from './boss'
 import { getActiveAccount, hasEnvOverride } from './accounts'
 
@@ -41,20 +41,25 @@ export function createTray(getWin: () => BrowserWindow | null): void {
   const menu = Menu.buildFromTemplate([
     { label: '打开墨纸', click: showWin },
     {
-      label: '立即拉取全部',
+      label: '更新全部小说',
       click: () => {
         void (async () => {
-          /* 登录页阶段没有账号库，不拉取 */
+          /* 登录页阶段没有账号库，不更新 */
           if (!(hasEnvOverride() || getActiveAccount())) return
-          const results = await pullAllSources()
-          const added = results.filter((r) => r.ok).reduce((n, r) => n + r.added, 0)
+          const r = await updateAllNovels()
           const pad = (n: number): string => String(n).padStart(2, '0')
           const d = new Date()
           setSetting('last_sync_at', `${pad(d.getHours())}:${pad(d.getMinutes())}`)
           const win = getWin()
           if (win && !win.isDestroyed()) {
             win.webContents.send('shelf:changed')
-            new Notification({ title: '墨纸 · 拉取完成', body: `新增 ${added} 篇文章` }).show()
+            new Notification({
+              title: '墨纸 · 更新完成',
+              body:
+                r.addedChapters > 0
+                  ? `${r.updatedBooks} 本有更新 · 共新增 ${r.addedChapters} 章`
+                  : `已检查 ${r.checked} 本，暂无新章节`
+            }).show()
           }
         })()
       }

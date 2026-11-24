@@ -13,15 +13,9 @@ import {
   getChapter,
   saveProgress,
   readBookFile,
-  addSource,
-  updateSource,
-  removeSource,
-  openArticle,
-  saveArticleProgress,
   setSetting,
   getSetting,
   getPullLogs,
-  clearArticles,
   createNovelBook,
   getNovelSource,
   listChapterUrls,
@@ -46,9 +40,9 @@ import {
   markStaleNovelLogs,
   dropNovelPullLog,
   getBookTitleById,
-  closeDb
+  closeDb,
+  listOnlineBookIds
 } from './db'
-import { pullSource, pullAllSources, setSyncProgressSink, startScheduler, stopScheduler } from './sync'
 import { parseTocPages, writeTxtFile } from './novel'
 import {
   setNovelDb,
@@ -56,7 +50,8 @@ import {
   crawlNovel,
   pauseNovel,
   resumeNovel,
-  getJob
+  getJob,
+  updateAllNovels
 } from './novelJob'
 import {
   bindCloseToTray,
@@ -318,40 +313,20 @@ void (async (): Promise<void> => {
     return true
   })
 
-  /* 订阅源与文章 */
-  ipcMain.handle(
-    'source:add',
-    (_e, input: { name: string; url: string; type: string; intervalMinutes: number }) =>
-      addSource(input)
-  )
-  ipcMain.handle(
-    'source:update',
-    (_e, id: number, patch: { intervalMinutes?: number; enabled?: boolean; name?: string }) =>
-      updateSource(id, patch)
-  )
-  ipcMain.handle('source:remove', (_e, id: number) => removeSource(id))
-  ipcMain.handle('source:pull', (_e, id: number) => pullSource(id))
-  ipcMain.handle('sources:pullAll', async () => {
-    const results = await pullAllSources()
+  /* 同步记录 + 更新全部小说 */
+  ipcMain.handle('sync:getLogs', () => getPullLogs())
+  ipcMain.handle('novels:updateAll', async () => {
+    const r = await updateAllNovels()
     const pad = (n: number): string => String(n).padStart(2, '0')
     const d = new Date()
     setSetting('last_sync_at', `${pad(d.getHours())}:${pad(d.getMinutes())}`)
-    return results
+    mainWindow?.webContents.send('shelf:changed')
+    logEvent('novel', 'info', `更新全部：检查 ${r.checked} 本，${r.updatedBooks} 本有更新，共新增 ${r.addedChapters} 章`)
+    return r
   })
-  ipcMain.handle('sync:getLogs', () => getPullLogs())
-  ipcMain.handle('article:open', (_e, id: number) => openArticle(id))
-  ipcMain.handle('article:saveProgress', (_e, id: number, pct: number) =>
-    saveArticleProgress(id, pct)
-  )
 
   /* 设置与数据管理 */
   registerSettingsIpc()
-  ipcMain.handle('data:clearArticles', () => {
-    clearArticles()
-    const win = BrowserWindow.getAllWindows()[0]
-    win?.webContents.send('shelf:changed')
-    return true
-  })
   ipcMain.handle('data:getDirInfo', () => ({
     current: app.getPath('userData'),
     defaultDir: defaultDataDir(),
@@ -387,7 +362,8 @@ void (async (): Promise<void> => {
     appendChapters,
     countChapters,
     updateNovelProgress,
-    setBookChapterCount
+    setBookChapterCount,
+    listOnlineBookIds
   })
   /* 小说抓取进度：推给阅读页 + 写入订阅页「同步记录」（唯一活条目带实时进度） */
   const novelLive = new Set<number>()
@@ -431,9 +407,6 @@ void (async (): Promise<void> => {
       return
     }
     mainWindow?.webContents.send('sync-log:changed')
-  })
-  setSyncProgressSink((p) => {
-    mainWindow?.webContents.send('sync:progress', p)
   })
   ipcMain.handle('novel:create', async (_e, tocUrl: string) => {
     try {
@@ -554,12 +527,12 @@ void (async (): Promise<void> => {
   const onSessionReady = (): void => {
     applyProxy()
     markStaleNovelLogs()
-    startScheduler(boolSetting('pull_on_start', true))
+    // 「启动时自动更新小说」：静默跑一轮全量增量检查（进度走同步记录，不打扰）
+    if (boolSetting('pull_on_start', true)) void updateAllNovels().catch(() => {})
     const a = getActiveAccount()
     logEvent('app', 'info', `已进入账号「${a?.name ?? 'env'}」（v${app.getVersion()}，数据目录 ${app.getPath('userData')}）`)
   }
   const teardownSession = (): void => {
-    stopScheduler()
     resetNovelJobs()
     closeDb()
     deactivateAccount()
@@ -663,9 +636,6 @@ void (async (): Promise<void> => {
       : `墨纸启动完成（v${app.getVersion()}，数据目录 ${app.getPath('userData')}）`
   )
 
-  // 已登录（或 env 直通）：调度器常开，“启动时立即拉取首轮”受设置控制；登录页阶段不启动
-  if (sessionActive) startScheduler(boolSetting('pull_on_start', true))
-
   /* 老板键：全局一键隐藏/恢复；支持自定义（存 settings 表），默认回退链 */
   initBossKey(() => mainWindow)
   registerBossIpc(() => mainWindow)
@@ -683,7 +653,6 @@ app.on('before-quit', () => {
 
 app.on('window-all-closed', () => {
   // close_to_tray=true 时 close 已被拦截，不会走到这里；走到即用户选择退出或托盘退出
-  stopScheduler()
   destroyTray()
   if (!sessionActive || !boolSetting('close_to_tray', true)) app.quit()
 })

@@ -4,7 +4,7 @@
  * 让 Playwright 能在 http://localhost:5173/ 验证渲染管线。
  * 进度存内存（刷新即重置，测试中可通过 window.__mockProg 查看）。
  */
-import type { NovelJobState, OpenedArticle, OpenedBook, PullOutcome, Shelf, Source } from './types'
+import type { NovelJobState, OpenedBook, Shelf } from './types'
 
 const EPUB_TOC = [
   '冬阳·童年·骆驼队',
@@ -19,7 +19,6 @@ const prog = new Map<number, Prog>()
 /* 201 压测书的章节管理模拟（重命名/删除） */
 const renames201 = new Map<number, string>()
 const deleted201 = new Set<number>()
-const artProg = new Map<number, number>()
 let lastSync = '14:32'
 const pullLogs: {
   at: string
@@ -35,14 +34,11 @@ const pullLogs: {
   done?: number
   total?: number
 }[] = [
+  { at: '15:02', name: '墨与纸(模拟·在线抓取)', added: 3, ok: true, kind: 'novel', bookId: 301 },
   { at: '14:32', name: '阮一峰周刊', added: 3, ok: true },
-  { at: '14:32', name: '某独立博客', added: 0, ok: true },
-  { at: '13:05', name: '科技爱好者周刊', added: 5, ok: true },
   { at: '13:04', name: '失效测试源', added: 0, ok: false, error: 'HTTP 404 Not Found' }
 ]
-const syncProgressListeners: ((p: { done: number; total: number; name: string; finished: boolean }) => void)[] = []
 const syncLogListeners: (() => void)[] = []
-let idSeq = 100
 
 /* 模拟小说书（id=301）：12 章，第 6 章与第 5 章内容相同（查重用例） */
 interface MockChapter {
@@ -150,49 +146,6 @@ function emitNovel(): void {
   syncLogListeners.forEach((cb) => cb())
 }
 
-interface MockArticle {
-  id: number
-  title: string
-  source: string
-  sourceId: number
-  url: string
-  author: string
-  publishedAt: string
-  unread: boolean
-  progress: number
-  isNew: boolean
-  sortAt: number
-  contentHtml: string
-}
-const articles: MockArticle[] = [
-  { id: 1, title: '第 305 期：AI 与阅读的未来', source: '科技爱好者周刊', sourceId: 1, url: 'https://example.com/305', author: '阮一峰', publishedAt: '11-10', unread: true, progress: 0, isNew: false, sortAt: 9, contentHtml: MOCK_ARTICLE_HTML('第 305 期：AI 与阅读的未来', '科技爱好者周刊') },
-  { id: 2, title: '把 RSS 作为一种生活方式', source: '阮一峰周刊', sourceId: 2, url: 'https://example.com/rss-life', author: '', publishedAt: '11-09', unread: true, progress: 0, isNew: false, sortAt: 8, contentHtml: MOCK_ARTICLE_HTML('把 RSS 作为一种生活方式', '阮一峰周刊') },
-  { id: 3, title: '为什么我还在写博客', source: '少数派', sourceId: 3, url: 'https://example.com/blog', author: '', publishedAt: '11-09', unread: true, progress: 0, isNew: false, sortAt: 7, contentHtml: MOCK_ARTICLE_HTML('为什么我还在写博客', '少数派') },
-  { id: 4, title: '本地优先软件的十年', source: '科技爱好者周刊', sourceId: 1, url: 'https://example.com/local-first', author: '', publishedAt: '11-08', unread: true, progress: 38, isNew: false, sortAt: 6, contentHtml: MOCK_ARTICLE_HTML('本地优先软件的十年', '科技爱好者周刊') },
-  { id: 5, title: '从纸到屏：阅读介质小史', source: '少数派', sourceId: 3, url: 'https://example.com/paper', author: '', publishedAt: '11-07', unread: false, progress: 100, isNew: false, sortAt: 5, contentHtml: MOCK_ARTICLE_HTML('从纸到屏：阅读介质小史', '少数派') },
-  { id: 6, title: 'PDF 重排版的一次尝试', source: '阮一峰周刊', sourceId: 2, url: 'https://example.com/pdf', author: '', publishedAt: '11-06', unread: false, progress: 100, isNew: false, sortAt: 4, contentHtml: MOCK_ARTICLE_HTML('PDF 重排版的一次尝试', '阮一峰周刊') }
-]
-
-const sources: Source[] = [
-  { id: 1, name: '科技爱好者周刊', url: 'https://rsshub.app/ruanyifeng', type: 'rss', intervalMinutes: 360, lastPullAt: '2 小时前', lastCount: 3, enabled: true },
-  { id: 2, name: '阮一峰周刊', url: 'https://ruanyifeng.com/blog/atom.xml', type: 'rss', intervalMinutes: 60, lastPullAt: '40 分钟前', lastCount: 1, enabled: true },
-  { id: 3, name: '少数派', url: 'https://sspai.com/feed', type: 'rss', intervalMinutes: 30, lastPullAt: '25 分钟前', lastCount: 0, enabled: true },
-  { id: 4, name: '某独立博客', url: 'https://blog.example.com', type: 'web', intervalMinutes: 0, lastPullAt: '3 天前', lastCount: 2, enabled: false }
-]
-
-function MOCK_ARTICLE_HTML(title: string, src: string): string {
-  const paras = [
-    `这是《${title}》的模拟正文（devMock）。订阅管线在浏览器模式下不发起真实网络请求，这里用固定文案撑起版式，供文章阅读视图的样式与进度验证。`,
-    '墨纸的订阅设计遵循一个朴素的原则：把网络内容变成"书"。拉取到的每一篇文章都会进入本地 SQLite，之后无论离线与否、原站是否删帖，都能在书架上重新打开。',
-    `本文来自 ${src}。正文支持标题、列表、引用与代码块：`,
-    '<blockquote>好的工具应该像纸一样安静——它在场，但不打扰。</blockquote>',
-    '<ul><li>全文入库，离线可读</li><li>按源设置拉取间隔</li><li>阅读进度自动记忆</li></ul>',
-    '<pre><code>fetch(url) → parse → sanitize → sqlite</code></pre>',
-    '结尾一段用于把页面撑长，验证滚动进度保存与恢复。'.repeat(6)
-  ]
-  return paras.map((p) => (p.startsWith('<') ? p : `<p>${p}</p>`)).join('')
-}
-
 ;(window as unknown as { __mockProg: Map<number, Prog> }).__mockProg = prog
 
 /* 书架删除模拟：软删书 id，shelf() 过滤 */
@@ -221,13 +174,6 @@ function shelf(): Shelf {
         coverPath: cover ?? ''
       }
     }),
-    articles: articles.map((a) => ({
-      id: a.id, title: a.title, source: a.source, sourceId: a.sourceId, url: a.url, author: a.author,
-      publishedAt: a.publishedAt, unread: a.unread,
-      progress: artProg.get(a.id) ?? a.progress,
-      isNew: a.isNew, sortAt: a.sortAt
-    })),
-    sources: sources.map((s) => ({ ...s })),
     lastSyncAt: lastSync
   }
 }
@@ -298,50 +244,29 @@ function openBook(id: number): OpenedBook | null {
   return null
 }
 
-function openArticle(id: number): OpenedArticle | null {
-  const a = articles.find((x) => x.id === id)
-  if (!a) return null
-  a.unread = false
-  return {
-    id: a.id, title: a.title, source: a.source, author: a.author,
-    publishedAt: a.publishedAt, url: a.url, contentHtml: a.contentHtml,
-    progress: artProg.get(a.id) ?? a.progress
-  }
-}
-
-/** 模拟拉取：1.2s 后给该源补 2 篇新文章（并写同步记录） */
-async function mockPull(id: number): Promise<PullOutcome> {
-  const src = sources.find((s) => s.id === id)
-  if (!src) return { ok: false, sourceId: id, sourceName: '', added: 0, error: '源不存在' }
-  await new Promise((r) => setTimeout(r, 1200))
-  const base = Date.now() / 1000
-  for (let i = 0; i < 2; i++) {
-    idSeq++
-    const n = articles.length + 1
-    articles.unshift({
-      id: idSeq,
-      title: `【新】${src.name}动态 第 ${n} 篇`,
-      source: src.name, sourceId: src.id,
-      url: `https://example.com/${idSeq}`,
-      author: '', publishedAt: '刚刚',
-      unread: true, progress: 0, isNew: true,
-      sortAt: base + 1 - i / 10,
-      contentHtml: MOCK_ARTICLE_HTML(`【新】${src.name}动态 第 ${n} 篇`, src.name)
-    })
-  }
+/** 模拟「更新全部小说」：检查在线书（format NOVEL），1.8s 后返回新增章节数并写同步记录 */
+async function mockUpdateAllNovels(): Promise<{ checked: number; updatedBooks: number; addedChapters: number }> {
+  const online = shelf().books.filter((b) => b.format === 'NOVEL')
+  await new Promise((r) => setTimeout(r, 1800))
   const d = new Date()
   const pad = (x: number): string => String(x).padStart(2, '0')
-  src.lastPullAt = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-  src.lastCount = 2
-  pullLogs.unshift({
-    at: src.lastPullAt,
-    name: src.name,
-    added: 2,
-    ok: true
-  })
+  const at = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  lastSync = at
+  const added = online.length > 0 ? 3 : 0
+  for (const b of online.slice(0, 2)) {
+    pullLogs.unshift({
+      at,
+      name: b.title,
+      added: added > 0 ? Math.max(1, Math.round(added / Math.max(1, online.slice(0, 2).length))) : 0,
+      ok: true,
+      kind: 'novel',
+      bookId: b.id
+    })
+  }
   if (pullLogs.length > 30) pullLogs.length = 30
-  console.log('[devMock] pullSource', id, '+2')
-  return { ok: true, sourceId: id, sourceName: src.name, added: 2 }
+  syncLogListeners.forEach((cb) => cb())
+  mockShelfListeners.forEach((cb) => cb())
+  return { checked: online.length, updatedBooks: added > 0 ? online.length : 0, addedChapters: added }
 }
 
 export function setupDevMock(): void {
@@ -430,62 +355,8 @@ export function setupDevMock(): void {
     importPaths: () => Promise.resolve([]),
     pickAndImport: () => Promise.resolve([]),
     pathForFile: () => '',
-    addSource: (input: { name: string; url: string; type: string; intervalMinutes: number }) => {
-      idSeq++
-      const s: Source = {
-        id: idSeq, name: input.name, url: input.url, type: input.type,
-        intervalMinutes: input.intervalMinutes, lastPullAt: null, lastCount: 0, enabled: true
-      }
-      sources.push(s)
-      return Promise.resolve({ ...s })
-    },
-    updateSource: async (id, patch) => {
-      const s = sources.find((x) => x.id === id)
-      if (!s) return
-      if (patch.intervalMinutes !== undefined) s.intervalMinutes = patch.intervalMinutes
-      if (patch.enabled !== undefined) s.enabled = patch.enabled
-      if (patch.name !== undefined) s.name = patch.name
-    },
-    removeSource: async (id) => {
-      const i = sources.findIndex((x) => x.id === id)
-      if (i >= 0) sources.splice(i, 1)
-      for (let j = articles.length - 1; j >= 0; j--) if (articles[j].sourceId === id) articles.splice(j, 1)
-    },
-    pullSource: (id: number) => mockPull(id),
+    updateAllNovels: () => mockUpdateAllNovels(),
     getPullLogs: () => Promise.resolve(pullLogs.slice()),
-    onSyncProgress: (cb: (p: { done: number; total: number; name: string; finished: boolean }) => void) => {
-      syncProgressListeners.push(cb)
-      return () => {
-        const i = syncProgressListeners.indexOf(cb)
-        if (i >= 0) syncProgressListeners.splice(i, 1)
-      }
-    },
-    pullAllSources: async () => {
-      const results: PullOutcome[] = []
-      const enabled = sources.filter((x) => x.enabled)
-      if (enabled.length === 0) {
-        const d0 = new Date()
-        const p0 = (x: number): string => String(x).padStart(2, '0')
-        pullLogs.unshift({ at: `${p0(d0.getHours())}:${p0(d0.getMinutes())}`, name: '手动拉取全部', added: 0, ok: true, empty: true })
-      }
-      let done = 0
-      for (const s of enabled) {
-        await new Promise((r) => setTimeout(r, 300))
-        results.push(await mockPull(s.id))
-        done += 1
-        const p = { done, total: enabled.length, name: s.name, finished: done >= enabled.length }
-        for (const fn of syncProgressListeners) fn(p)
-      }
-      const d = new Date()
-      const pad = (x: number): string => String(x).padStart(2, '0')
-      lastSync = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-      return results
-    },
-    openArticle: (id: number) => Promise.resolve(openArticle(id)),
-    saveArticleProgress: (id: number, pct: number) => {
-      artProg.set(id, Math.min(100, Math.max(0, pct)))
-      return Promise.resolve()
-    },
     getSettings: () =>
       Promise.resolve({
         autostart: mockSettings.autostart,
@@ -512,10 +383,6 @@ export function setupDevMock(): void {
       else mockSettings.pullOnStart = value
       console.log('[devMock] setSetting', key, value)
       return Promise.resolve()
-    },
-    clearArticles: () => {
-      articles.length = 0
-      return Promise.resolve(true)
     },
     getDataDirInfo: () =>
       Promise.resolve({ current: mockDataDir, defaultDir: 'C:\\Users\\you\\AppData\\Roaming\\墨纸 Mozhi Reader', custom: mockDataDirCustom }),
@@ -859,9 +726,9 @@ function mockManifest() {
     app: '0.2.0',
     createdAt: new Date().toISOString(),
     books: s.books.length,
-    articles: s.articles.length,
+    articles: 0,
     chapters: s.books.reduce((n, b) => n + (b.totalChapters || 0), 0),
-    sources: s.sources.length,
+    sources: 0,
     covers: mockCovers.size,
     zipBytes: 15329894
   }

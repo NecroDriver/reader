@@ -35,6 +35,7 @@ export interface NovelDbApi {
   countChapters(bookId: number): number
   updateNovelProgress(bookId: number, cursorUrl: string, fetched: number, total: number, status: string): void
   setBookChapterCount(bookId: number): void
+  listOnlineBookIds(): number[]
 }
 let dbApi: NovelDbApi | null = null
 export function setNovelDb(api: NovelDbApi): void {
@@ -144,4 +145,39 @@ export function resumeNovel(bookId: number): NovelJobState {
 
 export function isRunning(bookId: number): boolean {
   return jobs.get(bookId)?.status === 'running'
+}
+
+export interface UpdateAllResult {
+  checked: number
+  updatedBooks: number
+  addedChapters: number
+}
+
+/**
+ * 「更新全部」：对每一本在线小说做一轮增量检查（串行，避免并发请求风暴）。
+ * 每本书经 resumeNovel 的 ensure-crawl 语义：已是 running 的跳过等待，其余立即检查目录。
+ * 进度仍走 setNovelProgressSink → 同步记录实时条目。
+ */
+export async function updateAllNovels(): Promise<UpdateAllResult> {
+  if (!dbApi) throw new Error('novel db not ready')
+  const ids = dbApi.listOnlineBookIds()
+  const result: UpdateAllResult = { checked: 0, updatedBooks: 0, addedChapters: 0 }
+  for (const id of ids) {
+    // 已在抓的书不重复启动（避免同书并发），等它自然收敛即可
+    if (isRunning(id)) {
+      result.checked++
+      continue
+    }
+    try {
+      const s = await crawlNovel(id)
+      result.checked++
+      if (s.done > 0) {
+        result.updatedBooks++
+        result.addedChapters += s.done
+      }
+    } catch (e) {
+      logEvent('novel', 'error', `updateAll book=${id} 失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+  return result
 }

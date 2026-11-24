@@ -75,50 +75,8 @@ export interface ImportOutcome {
   chapters?: number
   error?: string
 }
-export interface Article {
-  id: number
-  title: string
-  source: string
-  sourceId: number
-  url: string
-  author: string
-  publishedAt: string
-  unread: boolean
-  progress: number
-  isNew: boolean
-  sortAt: number
-}
-export interface OpenedArticle {
-  id: number
-  title: string
-  source: string
-  author: string
-  publishedAt: string
-  url: string
-  contentHtml: string
-  progress: number
-}
-export interface PullOutcome {
-  ok: boolean
-  sourceId: number
-  sourceName: string
-  added: number
-  error?: string
-}
-export interface Source {
-  id: number
-  name: string
-  url: string
-  type: string
-  intervalMinutes: number
-  lastPullAt: string | null
-  lastCount: number
-  enabled: boolean
-}
 export interface Shelf {
   books: Book[]
-  articles: Article[]
-  sources: Source[]
   lastSyncAt: string
 }
 export type ViewName = 'shelf' | 'sources' | 'settings'

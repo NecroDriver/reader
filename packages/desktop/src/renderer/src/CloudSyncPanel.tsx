@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import SliderSwitch from './SliderSwitch'
 
 interface CloudCfgView {
   enabled: boolean
@@ -236,14 +237,7 @@ export default function CloudSyncPanel({
       <p className="group-eyebrow">CLOUD SYNC · 云同步</p>
       <h2>
         {CloudIcon} 云同步
-        <button
-          type="button"
-          className={`switch${cfg.enabled ? ' on' : ''}`}
-          role="switch"
-          aria-checked={cfg.enabled}
-          aria-label="启用云同步"
-          onClick={() => void toggleEnabled()}
-        />
+        <SliderSwitch checked={cfg.enabled} onChange={() => void toggleEnabled()} label="启用云同步" />
       </h2>
 
       {cfg.enabled ? (

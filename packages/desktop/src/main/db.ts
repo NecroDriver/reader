@@ -47,8 +47,6 @@ export interface SourceRow {
 }
 export interface Shelf {
   books: BookRow[]
-  articles: ArticleRow[]
-  sources: SourceRow[]
   last_sync_at: string
 }
 
@@ -245,14 +243,17 @@ export function getShelf(): Shelf {
     .get() as { value: string } | undefined
   return {
     books: d.prepare('SELECT * FROM books ORDER BY sort_at DESC').all() as BookRow[],
-    articles: d
-      .prepare(
-        'SELECT id, title, source, source_id, url, author, published_at, unread, progress, is_new, sort_at FROM articles ORDER BY sort_at DESC, id DESC LIMIT 50'
-      )
-      .all() as ArticleRow[],
-    sources: d.prepare('SELECT * FROM sources ORDER BY id').all() as SourceRow[],
     last_sync_at: sync?.value ?? '—'
   }
+}
+
+/** 全部在线小说书的 id（origin_path 是 http(s) URL 的书） */
+export function listOnlineBookIds(): number[] {
+  return (
+    getDb()
+      .prepare("SELECT id FROM books WHERE origin_path LIKE 'http%' ORDER BY sort_at DESC")
+      .all() as { id: number }[]
+  ).map((r) => r.id)
 }
 
 /* ---------- 本地导入与阅读 ---------- */
