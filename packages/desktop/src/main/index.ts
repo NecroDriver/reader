@@ -88,6 +88,14 @@ import {
   testCloudConnection,
   uploadSnapshot
 } from './cloudSync'
+import {
+  getPgConfigView,
+  loginPgAccount,
+  logoutPgAccount,
+  registerPgAccount,
+  savePgConfig,
+  testPgConnection
+} from './pgSync'
 import { resetNovelJobs } from './novelJob'
 
 let mainWindow: BrowserWindow | null = null
@@ -638,6 +646,36 @@ void (async (): Promise<void> => {
     const r = applyPhoneProgress(picks ?? [])
     if (r.applied > 0) shelfChanged()
     return r
+  })
+
+  /* ---------- 账号云同步（PG 账本，v2.1 M-A） ---------- */
+  ipcMain.handle('pg:getConfig', () => {
+    requireSession()
+    return getPgConfigView()
+  })
+  ipcMain.handle('pg:saveConfig', (_e, patch: Parameters<typeof savePgConfig>[0]) => {
+    requireSession()
+    return savePgConfig(patch ?? {})
+  })
+  ipcMain.handle('pg:test', async () => {
+    requireSession()
+    try {
+      return { ok: true as const, message: await testPgConnection() }
+    } catch (e) {
+      return { ok: false as const, message: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle('pg:register', (_e, name: string, password: string) => {
+    requireSession()
+    return registerPgAccount(String(name ?? ''), String(password ?? ''))
+  })
+  ipcMain.handle('pg:login', (_e, name: string, password: string) => {
+    requireSession()
+    return loginPgAccount(String(name ?? ''), String(password ?? ''))
+  })
+  ipcMain.handle('pg:logout', () => {
+    requireSession()
+    return logoutPgAccount()
   })
 
   createWindow()

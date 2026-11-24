@@ -252,7 +252,36 @@ const api = {
   applyPhoneProgress: (
     picks: PhoneProgressPick[]
   ): Promise<{ applied: number; missing: number }> =>
-    ipcRenderer.invoke('cloud:applyPhoneProgress', picks)
+    ipcRenderer.invoke('cloud:applyPhoneProgress', picks),
+
+  /* 账号云同步（PG 账本，v2.1 M-A） */
+  getPgConfig: (): Promise<PgCfgView> => ipcRenderer.invoke('pg:getConfig'),
+  savePgConfig: (patch: {
+    enabled?: boolean
+    host?: string
+    port?: number
+    database?: string
+    user?: string
+    password?: string
+  }): Promise<PgCfgView> => ipcRenderer.invoke('pg:saveConfig', patch),
+  testPg: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('pg:test'),
+  registerPg: (name: string, password: string): Promise<PgResult> =>
+    ipcRenderer.invoke('pg:register', name, password),
+  loginPg: (name: string, password: string): Promise<PgResult> =>
+    ipcRenderer.invoke('pg:login', name, password),
+  logoutPg: (): Promise<PgResult> => ipcRenderer.invoke('pg:logout')
+}
+
+export type PgResult = { ok: true; view: PgCfgView } | { ok: false; error: string }
+
+export interface PgCfgView {
+  enabled: boolean
+  host: string
+  port: number
+  database: string
+  user: string
+  secretStored: boolean
+  session: { userId: string; name: string } | null
 }
 
 export interface PhoneProgressEntryView {

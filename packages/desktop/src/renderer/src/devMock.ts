@@ -690,7 +690,63 @@ export function setupDevMock(): void {
         console.log('[devMock] applyPhoneProgress', applied, '/', picks.length)
         mockShelfListeners.forEach((cb) => cb())
         r({ applied, missing: picks.length - applied })
-      })
+      }),
+
+    /* 账号云同步（PG）mock */
+    getPgConfig: () => Promise.resolve(mockPgView()),
+    savePgConfig: (patch: { enabled?: boolean; host?: string; port?: number; database?: string; user?: string; password?: string }) => {
+      if (patch.enabled !== undefined) mockPg.enabled = patch.enabled
+      if (patch.host !== undefined) mockPg.host = patch.host
+      if (patch.port !== undefined && patch.port > 0) mockPg.port = patch.port
+      if (patch.database !== undefined) mockPg.database = patch.database
+      if (patch.user !== undefined) mockPg.user = patch.user
+      if (patch.password !== undefined) mockPg.secretStored = patch.password !== ''
+      return Promise.resolve(mockPgView())
+    },
+    testPg: () =>
+      new Promise((r) => {
+        setTimeout(() => {
+          if (!mockPg.host || !mockPg.database || !mockPg.user || !mockPg.secretStored) {
+            r({ ok: false, message: '请先完整填写连接配置并保存口令（模拟）' })
+            return
+          }
+          r({ ok: true, message: 'PostgreSQL 18.6 · 账本表就绪（模拟）' })
+        }, 700)
+      }),
+    registerPg: (name: string, password: string) =>
+      new Promise((r) => {
+        setTimeout(() => {
+          const n = name.trim()
+          if (!n) r({ ok: false, error: '请填写账号名' })
+          else if (n.length > 24) r({ ok: false, error: '账号名最长 24 字' })
+          else if (n === '游客') r({ ok: false, error: '账号名不可用' })
+          else if (!password || password.length < 4) r({ ok: false, error: '口令至少 4 位' })
+          else if (mockPgUsers.has(n)) r({ ok: false, error: '该账号名已被注册' })
+          else {
+            mockPgUsers.set(n, password)
+            mockPg.session = { userId: `u-${n}`, name: n }
+            console.log('[devMock] registerPg', n)
+            r({ ok: true, view: mockPgView() })
+          }
+        }, 700)
+      }),
+    loginPg: (name: string, password: string) =>
+      new Promise((r) => {
+        setTimeout(() => {
+          const n = name.trim()
+          if (!n || !password) r({ ok: false, error: '请填写账号名与口令' })
+          else if (!mockPgUsers.has(n) || mockPgUsers.get(n) !== password) r({ ok: false, error: '账号或口令不正确' })
+          else {
+            mockPg.session = { userId: `u-${n}`, name: n }
+            console.log('[devMock] loginPg', n)
+            r({ ok: true, view: mockPgView() })
+          }
+        }, 700)
+      }),
+    logoutPg: () => {
+      mockPg.session = null
+      return Promise.resolve({ ok: true, view: mockPgView() })
+    }
   }
 }
 
@@ -712,6 +768,17 @@ const mockCloud = {
   secretStored: false
 }
 const mockCloudView = () => ({ ...mockCloud, webdav: { ...mockCloud.webdav }, s3: { ...mockCloud.s3 } })
+const mockPg = {
+  enabled: false,
+  host: '',
+  port: 5432,
+  database: '',
+  user: '',
+  secretStored: false,
+  session: null as { userId: string; name: string } | null
+}
+const mockPgUsers = new Map<string, string>()
+const mockPgView = () => ({ ...mockPg, session: mockPg.session ? { ...mockPg.session } : null })
 let mockCloudRemote: ReturnType<typeof mockManifest> | null = null
 let mockPhoneProgress: (() => {
   app: string
