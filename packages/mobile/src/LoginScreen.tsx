@@ -18,12 +18,14 @@ export function LoginScreen({
   accounts,
   lastUsedId,
   onLogin,
-  onCreate
+  onCreate,
+  onGuest
 }: {
   accounts: AccountRec[]
   lastUsedId: string | null
   onLogin: (id: string, pwd: string, remember: boolean) => Promise<LoginResult>
   onCreate: (name: string, pwd: string, remember: boolean) => Promise<LoginResult>
+  onGuest: () => void
 }): React.JSX.Element {
   const t: ThemeDef = THEMES.paper
   const [pickedId, setPickedId] = useState<string | null>(
@@ -131,7 +133,10 @@ export function LoginScreen({
           backgroundColor: t.surface,
           marginTop: 8
         },
-        foot: { color: t.muted, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 30 }
+        foot: { color: t.muted, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 30 },
+        guestLink: { marginTop: 26, alignSelf: 'center' },
+        guestLinkText: { color: t.ink2, fontSize: 13, textDecorationLine: 'underline' },
+        guestHint: { color: t.muted, fontSize: 10.5, lineHeight: 15, textAlign: 'center', marginTop: 6 }
       }),
     [t, remember, busy]
   )
@@ -232,7 +237,7 @@ export function LoginScreen({
 
       {!creating ? (
         <Pressable style={s.btnGhost} disabled={busy} onPress={() => { setCreating(true); setErr('') }} accessibilityRole="button">
-          <Text style={s.btnGhostText}>＋ 新建账号</Text>
+          <Text style={s.btnGhostText}>＋ 注册新账号</Text>
         </Pressable>
       ) : (
         <View style={s.createPanel}>
@@ -255,7 +260,7 @@ export function LoginScreen({
               setCPwd(v)
               setErr('')
             }}
-            placeholder="口令（至少 4 位，留空为游客账号）"
+            placeholder="口令（至少 4 位）"
             placeholderTextColor={t.muted}
             secureTextEntry={!showPwd}
             accessibilityLabel="新账号口令"
@@ -276,6 +281,17 @@ export function LoginScreen({
       )}
 
       <Text style={s.foot}>每个账号拥有独立的书库；可在「设置 · 云同步」里配置 WebDAV，从桌面端快照恢复藏书。</Text>
+
+      <Pressable
+        style={s.guestLink}
+        disabled={busy}
+        onPress={onGuest}
+        accessibilityRole="button"
+        accessibilityLabel="游客进入，功能受限"
+      >
+        <Text style={s.guestLinkText}>先逛逛 · 游客进入</Text>
+      </Pressable>
+      <Text style={s.guestHint}>游客仅可浏览与阅读演示书库；云同步等功能需注册账号。</Text>
     </ScrollView>
   )
 }

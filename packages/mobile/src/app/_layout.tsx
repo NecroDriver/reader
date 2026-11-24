@@ -9,10 +9,10 @@ import { THEMES } from '../types'
 import {
   createAccount,
   ensureSchema,
+  GUEST_ACCOUNT,
   listAccounts,
   loginAccount,
   logoutAccount,
-  migrateFromLegacy,
   startupSession,
   type AccountRec
 } from '../accounts'
@@ -78,7 +78,6 @@ function SessionGate(): React.JSX.Element {
   useEffect(() => {
     let alive = true
     void (async () => {
-      await migrateFromLegacy()
       const s = await startupSession()
       if (!alive) return
       if (s) {
@@ -115,8 +114,13 @@ function SessionGate(): React.JSX.Element {
     return { ok: r.ok, error: r.ok ? undefined : r.error }
   }
 
+  function handleGuest(): void {
+    setAccount(GUEST_ACCOUNT)
+    setPhase('ready')
+  }
+
   async function handleLogout(): Promise<void> {
-    await logoutAccount()
+    if (account?.id !== GUEST_ACCOUNT.id) await logoutAccount()
     setAccount(null)
     const list = await listAccounts()
     setAccounts(list)
@@ -128,18 +132,20 @@ function SessionGate(): React.JSX.Element {
   if (phase === 'login' || account === null) {
     return (
       <View style={{ flex: 1, backgroundColor: THEMES.paper.bg, paddingTop: 0 }}>
-        <LoginScreen accounts={accounts} lastUsedId={lastUsedId} onLogin={handleLogin} onCreate={handleCreate} />
+        <LoginScreen accounts={accounts} lastUsedId={lastUsedId} onLogin={handleLogin} onCreate={handleCreate} onGuest={handleGuest} />
       </View>
     )
   }
 
-  const isLegacyDb = account.dbName === 'mozhi.db'
+  const isGuest = account.id === GUEST_ACCOUNT.id
+  /* 游客与演示库共用 mozhi.db：文件不存在时由 assetSource 播种演示书 */
+  const withSeed = isGuest || account.dbName === 'mozhi.db'
   return (
-    <SessionContext.Provider value={{ account, logout: handleLogout }}>
+    <SessionContext.Provider value={{ account, isGuest, logout: handleLogout }}>
       <SQLiteProvider
         key={account.dbName}
         databaseName={account.dbName}
-        assetSource={isLegacyDb ? { assetId: require('../../assets/mozhi.db') } : undefined}
+        assetSource={withSeed ? { assetId: require('../../assets/mozhi.db') } : undefined}
         onInit={(db) => ensureSchema(db)}
       >
         <ThemeProvider>

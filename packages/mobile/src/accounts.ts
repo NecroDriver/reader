@@ -2,22 +2,34 @@ import * as Crypto from 'expo-crypto'
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite'
 
 /**
- * 移动端账号体系：与桌面端同一套语义（本地账号 + 口令 + 记住我），
- * 存放在独立的 cloud-config.db（不随书库快照走、不被云端恢复覆盖）。
- * 每个账号对应一份独立书库文件 mozhi-<id>.db，实现账号级数据隔离；
- * 首次升级时把既有的 mozhi.db 挂到自动创建的「主账号」名下，老数据不丢。
+ * 移动端账号体系：注册账号 + 游客双轨。
+ * - 注册账号：口令必填，存独立的 cloud-config.db（不随书库快照走、不被云端恢复覆盖），
+ *   每个账号对应一份独立书库文件 mozhi-<id>.db，实现账号级数据隔离。
+ * - 游客：非持久身份（GUEST_ACCOUNT 伪记录），直接使用内置演示库 mozhi.db，
+ *   仅可浏览与阅读；云同步/进度回传等大部分功能需注册账号。
  */
 
 export interface AccountRec {
   id: string
   name: string
-  /** 该账号使用的书库文件名（不含路径）。主账号沿用 'mozhi.db' */
+  /** 该账号使用的书库文件名（不含路径）。游客使用内置演示库 'mozhi.db' */
   dbName: string
-  /** 空串 = 无口令账号（游客语义，直接进入） */
+  /** 口令哈希（注册账号恒非空） */
   pwdHash: string
   salt: string
   createdAt: number
   lastUsedAt: number
+}
+
+/** 游客伪记录：不进 accounts 表，使用内置演示库 */
+export const GUEST_ACCOUNT: AccountRec = {
+  id: 'guest',
+  name: '游客',
+  dbName: 'mozhi.db',
+  pwdHash: '',
+  salt: '',
+  createdAt: 0,
+  lastUsedAt: 0
 }
 
 const ROUNDS = 2000
@@ -53,26 +65,6 @@ async function accountsDb(): Promise<SQLiteDatabase> {
     );
   `)
   return db
-}
-
-/**
- * 首次运行迁移：没有任何账号时，把既有书库文件 mozhi.db
- * 挂到自动创建的「主账号」名下（不设口令 = 游客语义）。
- */
-export async function migrateFromLegacy(): Promise<void> {
-  const db = await accountsDb()
-  try {
-    const n = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM accounts')
-    if ((n?.c ?? 0) === 0) {
-      const now = Date.now()
-      await db.runAsync(
-        'INSERT INTO accounts (id, name, db_name, pwd_hash, salt, created_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        ['legacy-main', '主账号', 'mozhi.db', '', '', now, now]
-      )
-    }
-  } finally {
-    await db.closeAsync()
-  }
 }
 
 interface AccountRow {
@@ -164,7 +156,8 @@ export async function createAccount(
   const n = name.trim()
   if (!n) return { ok: false, error: '请填写账号名' }
   if (n.length > 12) return { ok: false, error: '账号名最多 12 个字' }
-  if (pwd !== '' && pwd.length < 4) return { ok: false, error: '口令至少 4 位（留空则为游客账号）' }
+  if (n === '游客') return { ok: false, error: '该名字保留给游客模式' }
+  if (pwd.length < 4) return { ok: false, error: '口令至少 4 位' }
   const db = await accountsDb()
   try {
     await db.execAsync('CREATE TABLE IF NOT EXISTS cfg (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
@@ -173,13 +166,13 @@ export async function createAccount(
     const id = randomId()
     const now = Date.now()
     const salt = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${id}:${now}:${Math.random()}`)
-    const h = pwd === '' ? '' : await hashPassword(pwd, salt)
+    const h = await hashPassword(pwd, salt)
     await db.runAsync(
       'INSERT INTO accounts (id, name, db_name, pwd_hash, salt, created_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [id, n, `mozhi-${id}.db`, h, salt, now, now]
     )
     await cfgSet(db, 'active_id', id)
-    await cfgSet(db, `remember_${id}`, h !== '' && remember ? b64(pwd) : null)
+    await cfgSet(db, `remember_${id}`, remember ? b64(pwd) : null)
     return { ok: true, account: { id, name: n, dbName: `mozhi-${id}.db`, pwdHash: h, salt, createdAt: now, lastUsedAt: now } }
   } finally {
     await db.closeAsync()

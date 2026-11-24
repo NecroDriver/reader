@@ -250,22 +250,57 @@ export default function SettingsScreen(): React.JSX.Element {
           <View style={s.section}>
             <Text style={s.sectionTitle}>账号</Text>
             <View style={s.card}>
-              <Text style={s.cardTitle}>{session.account.name}</Text>
-              <Text style={s.cardLine}>独立书库 · 账号级数据隔离；退出后需重新输入口令进入。</Text>
-              <View style={s.btnRow}>
-                <Pressable
-                  style={[s.btnGhost, busy ? s.btnDisabled : null]}
-                  disabled={busy}
-                  onPress={() => void session.logout()}
-                  accessibilityLabel="退出登录"
-                >
-                  <Text style={s.btnTextGhost}>退出登录</Text>
-                </Pressable>
-              </View>
+              {session.isGuest ? (
+                <>
+                  <Text style={s.cardTitle}>当前身份：游客</Text>
+                  <Text style={s.cardLine}>
+                    游客仅可浏览与阅读演示书库；云同步、云端恢复与进度回传需要注册账号，注册后拥有独立书库。
+                  </Text>
+                  <View style={s.btnRow}>
+                    <Pressable
+                      style={[s.btnPrimary, busy ? s.btnDisabled : null]}
+                      disabled={busy}
+                      onPress={() => void session.logout()}
+                      accessibilityLabel="注册或登录账号"
+                    >
+                      <Text style={s.btnText}>注册 / 登录账号</Text>
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={s.cardTitle}>{session.account.name}</Text>
+                  <Text style={s.cardLine}>独立书库 · 账号级数据隔离；退出后需重新输入口令进入。</Text>
+                  <View style={s.btnRow}>
+                    <Pressable
+                      style={[s.btnGhost, busy ? s.btnDisabled : null]}
+                      disabled={busy}
+                      onPress={() => void session.logout()}
+                      accessibilityLabel="退出登录"
+                    >
+                      <Text style={s.btnTextGhost}>退出登录</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
             </View>
           </View>
         )}
 
+        {session !== null && session.isGuest && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>云同步 · WebDAV</Text>
+            <View style={s.card}>
+              <Text style={s.cardTitle}>游客模式下不可用</Text>
+              <Text style={s.cardLine}>
+                云端书库恢复、快照下载与进度回传均需要注册账号。注册后可与桌面端共用同一份 WebDAV 快照。
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {!(session !== null && session.isGuest) && (
+          <>
         <View style={s.section}>
           <Text style={s.sectionTitle}>云同步 · WebDAV</Text>
           <Text style={s.sectionSub}>
@@ -423,6 +458,8 @@ export default function SettingsScreen(): React.JSX.Element {
             </View>
           </View>
         </View>
+          </>
+        )}
 
         <View style={[s.section, { marginBottom: 40 }]}>
           <Text style={s.sectionTitle}>关于</Text>
