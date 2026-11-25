@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link } from 'expo-router'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useFocusEffect } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
 import { ScrollView, Pressable, Text, View } from 'react-native'
 import { usePrefs } from '../theme'
@@ -13,13 +13,12 @@ let autoSynced = false
 export default function Shelf(): React.JSX.Element {
   const db = useSQLiteContext()
   const { theme } = usePrefs()
-  const t = THEMES[theme]
+  const t: ThemeDef = THEMES[theme]
   const [books, setBooks] = useState<BookRow[]>([])
   const [loaded, setLoaded] = useState(false)
   const syncingRef = useRef(false)
 
-  /* 每次回到书架重查，把阅读器写回的进度立即反映出来 */
-  useEffect(() => {
+  const reload = useCallback((): (() => void) => {
     let alive = true
     void (async () => {
       try {
@@ -33,6 +32,9 @@ export default function Shelf(): React.JSX.Element {
       alive = false
     }
   }, [db])
+
+  /* 每次回到书架重查：设置页配对/同步后的新库、阅读器写回的进度都立即反映 */
+  useFocusEffect(reload)
 
   /* 打开 App 自动与桌面端同步一次（已配对时） */
   useEffect(() => {
@@ -93,7 +95,7 @@ export default function Shelf(): React.JSX.Element {
       ))}
       {loaded && books.length === 0 ? (
         <Text style={{ color: t.muted, textAlign: 'center', marginTop: 64, fontSize: 13 }}>
-          快照里还没有书。桌面端上传后在此下载。
+          快照里还没有书。在「设置 · 设备同步」与桌面端配对后，书库会同步到此处。
         </Text>
       ) : null}
     </ScrollView>

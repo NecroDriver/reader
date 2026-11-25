@@ -6,6 +6,9 @@ import LanSyncPanel from './LanSyncPanel'
 import SliderSwitch from './SliderSwitch'
 import { setupDevMock } from './devMock'
 import type { Book, ImportOutcome, NovelJobState, PullLogEntry, Shelf, ViewName } from './types'
+import pkg from '../../../package.json'
+
+const APP_VERSION: string = pkg.version
 
 type Theme = 'paper' | 'sepia' | 'green' | 'ink'
 
@@ -1034,9 +1037,8 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
               <div className="settings-group">
                 <p className="group-eyebrow">ABOUT · 关于</p>
                 <h2>关于</h2>
-                <p className="about-line">
-                  墨纸 Mozhi Reader · 本地书架与订阅阅读 · Electron + React
-                </p>
+                <p className="about-line">墨纸 Mozhi Reader v{APP_VERSION}</p>
+                <p className="about-line">本地书架 · 在线小说抓取 · 局域网设备同步 · Electron + React</p>
               </div>
             </div>
           </section>
