@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { router } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { CameraView } from 'expo-camera'
+import { Camera, CameraView } from 'expo-camera'
 import Constants from 'expo-constants'
 import { usePrefs } from '../theme'
 import { THEMES, type ThemeDef } from '../types'
@@ -231,7 +231,21 @@ export default function SettingsScreen(): React.JSX.Element {
               </Text>
               {Platform.OS !== 'web' && !scanOn && (
                 <View style={s.btnRow}>
-                  <Pressable style={s.btnPrimary} onPress={() => setScanOn(true)}>
+                  <Pressable
+                    style={s.btnPrimary}
+                    onPress={() => {
+                      setLanErr('')
+                      void (async () => {
+                        try {
+                          const perm = await Camera.requestCameraPermissionsAsync()
+                          if (perm.granted) setScanOn(true)
+                          else setLanErr('未获得相机权限——可在系统设置·应用·墨纸中开启，或改用下方手动配对')
+                        } catch {
+                          setLanErr('相机不可用，请改用下方手动配对')
+                        }
+                      })()
+                    }}
+                  >
                     <Text style={s.btnText}>扫码配对</Text>
                   </Pressable>
                 </View>
