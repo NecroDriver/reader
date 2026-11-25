@@ -24,7 +24,8 @@ export async function ensureSchema(db: SQLiteDatabase): Promise<void> {
       download_url TEXT DEFAULT '',
       sync_uuid TEXT DEFAULT '',
       updated_at REAL DEFAULT 0,
-      chapters_rev INTEGER DEFAULT 0
+      chapters_rev INTEGER DEFAULT 0,
+      last_read_at REAL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS chapters (
       book_id INTEGER,
@@ -45,6 +46,7 @@ export async function ensureSchema(db: SQLiteDatabase): Promise<void> {
   if (!have.has('sync_uuid')) await db.execAsync("ALTER TABLE books ADD COLUMN sync_uuid TEXT DEFAULT ''")
   if (!have.has('updated_at')) await db.execAsync('ALTER TABLE books ADD COLUMN updated_at REAL DEFAULT 0')
   if (!have.has('chapters_rev')) await db.execAsync('ALTER TABLE books ADD COLUMN chapters_rev INTEGER DEFAULT 0')
+  if (!have.has('last_read_at')) await db.execAsync('ALTER TABLE books ADD COLUMN last_read_at REAL DEFAULT 0')
 }
 
 export async function listShelf(db: SQLiteDatabase): Promise<BookRow[]> {
@@ -60,6 +62,7 @@ export async function getBook(
   db: SQLiteDatabase,
   id: number
 ): Promise<BookRow | null> {
+  await db.runAsync('UPDATE books SET last_read_at = ? WHERE id = ?', [Date.now(), id])
   return db.getFirstAsync<BookRow>('SELECT * FROM books WHERE id = ?', [id])
 }
 
@@ -89,8 +92,8 @@ export async function saveProgress(
   label: string
 ): Promise<void> {
   await db.runAsync(
-    `UPDATE books SET progress = ?, current_chapter = ?, chapter_label = ?, updated_at = ? WHERE id = ?`,
-    [Math.min(100, Math.max(0, pct)), chapterIdx, label.slice(0, 40), Date.now(), bookId]
+    `UPDATE books SET progress = ?, current_chapter = ?, chapter_label = ?, updated_at = ?, last_read_at = ? WHERE id = ?`,
+    [Math.min(100, Math.max(0, pct)), chapterIdx, label.slice(0, 40), Date.now(), Date.now(), bookId]
   )
 }
 
@@ -111,6 +114,7 @@ export interface SyncBookIn {
   sortAt: number
   updatedAt: number
   chaptersRev: number
+  lastReadAt?: number
 }
 
 /** 首次同步前清掉无同步身份的旧快照残留（整库由桌面权威重建） */
@@ -147,19 +151,22 @@ export async function upsertSyncBook(db: SQLiteDatabase, b: SyncBookIn): Promise
     const r = await db.runAsync(
       `INSERT INTO books
          (title, author, format, cover_idx, cover_path, progress, chapter_label,
-          total_chapters, current_chapter, sort_at, created_at, sync_uuid, updated_at, chapters_rev)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, 0, ?)`,
+          total_chapters, current_chapter, sort_at, created_at, sync_uuid, updated_at, chapters_rev, last_read_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, 0, ?, ?)`,
       [
         b.title, b.author, b.format, b.coverIdx, b.coverPath, b.progress, b.chapterLabel,
-        b.totalChapters, b.currentChapter, b.sortAt, b.uuid, b.chaptersRev
+        b.totalChapters, b.currentChapter, b.sortAt, b.uuid, b.chaptersRev, b.lastReadAt ?? 0
       ]
     )
     return Number(r.lastInsertRowId)
   }
   await db.runAsync(
     `UPDATE books SET title = ?, author = ?, format = ?, cover_idx = ?, cover_path = ?,
-        total_chapters = ?, sort_at = ?, chapters_rev = ? WHERE id = ?`,
-    [b.title, b.author, b.format, b.coverIdx, b.coverPath, b.totalChapters, b.sortAt, b.chaptersRev, existing]
+        total_chapters = ?, sort_at = ?, chapters_rev = ?,
+        last_read_at = CASE WHEN last_read_at < ? THEN ? ELSE last_read_at END
+      WHERE id = ?`,
+    [b.title, b.author, b.format, b.coverIdx, b.coverPath, b.totalChapters, b.sortAt, b.chaptersRev,
+      b.lastReadAt ?? 0, b.lastReadAt ?? 0, existing]
   )
   /* 进度 LWW：本地 updated_at 非零=手机读过且未上推过，仅当服务端时间更新才覆盖 */
   await db.runAsync(
@@ -221,6 +228,31 @@ export async function collectProgressEntries(
 export async function countBooks(db: SQLiteDatabase): Promise<number> {
   const row = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM books')
   return row?.n ?? 0
+}
+
+export interface HistoryRow {
+  id: number
+  title: string
+  author: string
+  format: string
+  cover_idx: number
+  progress: number
+  chapter_label: string
+  total_chapters: number
+  current_chapter: number
+  last_read_at: number
+}
+
+/** 阅读历史（最近阅读优先，只含有阅读痕迹的书） */
+export async function listHistory(db: SQLiteDatabase): Promise<HistoryRow[]> {
+  return db.getAllAsync<HistoryRow>(
+    `SELECT id, title, author, format, cover_idx, progress, chapter_label,
+            total_chapters, current_chapter, last_read_at
+       FROM books
+      WHERE last_read_at > 0
+      ORDER BY last_read_at DESC
+      LIMIT 100`
+  )
 }
 
 export async function getSetting(

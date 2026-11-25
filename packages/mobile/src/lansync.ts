@@ -42,6 +42,7 @@ interface ServerBook {
   sortAt: number
   updatedAt: number
   chaptersRev: number
+  lastReadAt?: number
 }
 
 function toSyncBookIn(b: ServerBook): SyncBookIn {
@@ -58,7 +59,8 @@ function toSyncBookIn(b: ServerBook): SyncBookIn {
     currentChapter: b.currentChapter,
     sortAt: b.sortAt,
     updatedAt: b.updatedAt,
-    chaptersRev: b.chaptersRev
+    chaptersRev: b.chaptersRev,
+    lastReadAt: b.lastReadAt
   }
 }
 

@@ -81,16 +81,28 @@ export default function Shelf(): React.JSX.Element {
           <Text style={{ color: t.seal, fontSize: 11, letterSpacing: 2 }}>
             {owner ? `${owner} 的藏书` : 'LIBRARY · 藏书'}
           </Text>
-          <Link href="/settings" asChild>
-            <Pressable
-              accessibilityLabel="设置"
-              accessibilityRole="button"
-              hitSlop={10}
-              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, paddingVertical: 4, paddingHorizontal: 2 }]}
-            >
-              <Text style={{ color: t.ink2, fontSize: 13, letterSpacing: 3 }}>设置</Text>
-            </Pressable>
-          </Link>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            <Link href="/history" asChild>
+              <Pressable
+                accessibilityLabel="阅读历史"
+                accessibilityRole="button"
+                hitSlop={10}
+                style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, paddingVertical: 4, paddingHorizontal: 2 }]}
+              >
+                <Text style={{ color: t.ink2, fontSize: 13, letterSpacing: 3 }}>历史</Text>
+              </Pressable>
+            </Link>
+            <Link href="/settings" asChild>
+              <Pressable
+                accessibilityLabel="设置"
+                accessibilityRole="button"
+                hitSlop={10}
+                style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, paddingVertical: 4, paddingHorizontal: 2 }]}
+              >
+                <Text style={{ color: t.ink2, fontSize: 13, letterSpacing: 3 }}>设置</Text>
+              </Pressable>
+            </Link>
+          </View>
         </View>
         <Text style={{ color: t.ink, fontSize: 26, fontWeight: '600', marginTop: 4, fontFamily: 'serif' }}>书架</Text>
         <Text style={{ color: t.muted, fontSize: 12, marginTop: 2 }}>
@@ -127,8 +139,8 @@ function FormatChip({ format }: { format: string }): React.JSX.Element {
   )
 }
 
-/** 线装书式竖排书名：CJK 逐字竖叠，贴书脊（右缘） */
-function VerticalTitle({ title, max = 6 }: { title: string; max?: number }): React.JSX.Element {
+/** 线装书式竖排书名：CJK 逐字竖叠，居中（对标起点封面大字） */
+function VerticalTitle({ title, max = 7 }: { title: string; max?: number }): React.JSX.Element {
   const chars = Array.from(title.trim())
   const shown = chars.slice(0, max)
   if (chars.length > max) shown.push('…')
@@ -137,7 +149,7 @@ function VerticalTitle({ title, max = 6 }: { title: string; max?: number }): Rea
       {shown.map((c, i) => (
         <Text
           key={i}
-          style={{ color: '#F3EDE0', fontSize: 16, lineHeight: 21, fontWeight: '600', fontFamily: 'serif' }}
+          style={{ color: '#F3EDE0', fontSize: 17, lineHeight: 23, fontWeight: '600', fontFamily: 'serif' }}
         >
           {c}
         </Text>
@@ -166,7 +178,9 @@ function BookCard({ item, t }: { item: BookRow; t: ThemeDef }): React.JSX.Elemen
             width: '100%',
             backgroundColor: bg,
             borderRadius: 6,
-            padding: 9,
+            paddingHorizontal: 9,
+            paddingTop: 8,
+            paddingBottom: 7,
             shadowColor: '#221D17',
             shadowOpacity: 0.22,
             shadowRadius: 6,
@@ -174,36 +188,26 @@ function BookCard({ item, t }: { item: BookRow; t: ThemeDef }): React.JSX.Elemen
             elevation: 4
           }}
         >
-          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <FormatChip format={item.format} />
+          <FormatChip format={item.format} />
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <VerticalTitle title={item.title} />
           </View>
-          <View>
-            {item.progress > 0 ? (
+          {item.progress > 0 ? (
+            <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(243,237,224,.25)', marginBottom: 5, flexDirection: 'row' }}>
               <View
                 style={{
-                  height: 3,
-                  borderRadius: 2,
-                  backgroundColor: 'rgba(243,237,224,.25)',
-                  marginBottom: 6,
-                  flexDirection: 'row'
+                  width: `${Math.min(100, item.progress)}%`,
+                  backgroundColor: '#C05A42',
+                  borderRadius: 2
                 }}
-              >
-                <View
-                  style={{
-                    width: `${Math.min(100, item.progress)}%`,
-                    backgroundColor: '#C05A42',
-                    borderRadius: 2
-                  }}
-                />
-              </View>
-            ) : null}
-            <Text style={{ color: 'rgba(243,237,224,.85)', fontSize: 10.5, letterSpacing: 0.5 }} numberOfLines={1}>
-              {item.author || '佚名'}
-            </Text>
-          </View>
+              />
+            </View>
+          ) : null}
+          <Text style={{ color: 'rgba(243,237,224,.85)', fontSize: 10.5, letterSpacing: 0.5, textAlign: 'center' }} numberOfLines={1}>
+            {item.author || '佚名'}
+          </Text>
         </View>
-        <Text numberOfLines={1} style={{ color: t.ink2, fontSize: 11.5, marginTop: 6, paddingLeft: 1 }}>
+        <Text numberOfLines={1} style={{ color: t.ink2, fontSize: 11.5, marginTop: 6, textAlign: 'center' }}>
           {meta}
         </Text>
       </Pressable>

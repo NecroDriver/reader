@@ -5,7 +5,7 @@ import LoginScreen from './LoginScreen'
 import LanSyncPanel from './LanSyncPanel'
 import SliderSwitch from './SliderSwitch'
 import { setupDevMock } from './devMock'
-import type { Book, ImportOutcome, NovelJobState, PullLogEntry, Shelf, ViewName } from './types'
+import type { Book, HistoryItem, ImportOutcome, NovelJobState, PullLogEntry, Shelf, ViewName } from './types'
 import pkg from '../../../package.json'
 
 const APP_VERSION: string = pkg.version
@@ -25,6 +25,9 @@ const NavIcon = {
   sources: (
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 16V8.5M10 16V4M16 16v-6" /></svg>
   ),
+  history: (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="10" r="7" /><path d="M10 6.5V10l2.5 2" /></svg>
+  ),
   settings: (
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="10" cy="10" r="2.5" /><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4" /></svg>
   )
@@ -36,6 +39,35 @@ const CollapseIcon = (
 const ExpandIcon = (
   <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M8 5.5 12.5 10 8 14.5M4 5.5 8.5 10 4 14.5" /></svg>
 )
+
+/* ---------- 阅读历史工具 ---------- */
+
+function fmtReadTime(ts: number): string {
+  const d = new Date(ts)
+  const p = (x: number): string => String(x).padStart(2, '0')
+  const hm = `${p(d.getHours())}:${p(d.getMinutes())}`
+  const today = new Date()
+  const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+  if (ts >= dayStart) return `今天 ${hm}`
+  if (ts >= dayStart - 86400000) return `昨天 ${hm}`
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${hm}`
+}
+
+function historyGroups(items: HistoryItem[]): { key: string; label: string; items: HistoryItem[] }[] {
+  const today = new Date()
+  const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+  const groups: { key: string; label: string; items: HistoryItem[] }[] = [
+    { key: 'today', label: '今天', items: [] },
+    { key: 'yesterday', label: '昨天', items: [] },
+    { key: 'earlier', label: '更早', items: [] }
+  ]
+  for (const h of items) {
+    if (h.lastReadAt >= dayStart) groups[0].items.push(h)
+    else if (h.lastReadAt >= dayStart - 86400000) groups[1].items.push(h)
+    else groups[2].items.push(h)
+  }
+  return groups.filter((g) => g.items.length > 0)
+}
 
 function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
   const [view, setView] = useState<ViewName>('shelf')
@@ -60,6 +92,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
   const [readerBookId, setReaderBookId] = useState<number | null>(null)
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([])
   const [updatingAll, setUpdatingAll] = useState(false)
+  const [history, setHistory] = useState<HistoryItem[] | null>(null)
   const [novelUrl, setNovelUrl] = useState('')
   const [novelErr, setNovelErr] = useState('')
   const [novelBusy, setNovelBusy] = useState(false)
@@ -209,13 +242,26 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
   const go = useCallback(
     (v: ViewName) => {
       setView(v)
+      if (v === 'history') void loadHistory()
       if (readerBookId !== null) {
         setReaderBookId(null)
         reloadShelf()
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [readerBookId, reloadShelf]
   )
+
+  /* 阅读历史：进入视图时加载；退出阅读器后若停在历史页也刷新（last_read_at 已变） */
+  const loadHistory = useCallback(() => {
+    window.mozhi
+      ?.listReadHistory()
+      .then((rows) => setHistory(rows))
+      .catch(console.error)
+  }, [])
+  useEffect(() => {
+    if (view === 'history') loadHistory()
+  }, [view, loadHistory])
 
   /* 设置加载 + 主进程书架变化（托盘更新全部）订阅 */
   useEffect(() => {
@@ -439,6 +485,14 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
             {!navCollapsed && <span>书架</span>}
           </button>
           <button
+            className={'nav-item' + (view === 'history' ? ' active' : '')}
+            onClick={() => go('history')}
+            title={navCollapsed ? '历史' : undefined}
+          >
+            {NavIcon.history}
+            {!navCollapsed && <span>历史</span>}
+          </button>
+          <button
             className={'nav-item' + (view === 'sources' ? ' active' : '')}
             onClick={() => go('sources')}
             title={navCollapsed ? '书源' : undefined}
@@ -497,6 +551,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
             onExit={() => {
               setReaderBookId(null)
               reloadShelf()
+              if (view === 'history') loadHistory()
             }}
           />
         ) : (
@@ -645,6 +700,55 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                 )
               )}
               {shelf !== null && shelf.books.length === 0 && <p className="empty">这里还没有内容</p>}
+            </div>
+          </section>
+        )}
+
+        {view === 'history' && (
+          <section className="view">
+            <header className="view-head">
+              <p className="eyebrow">HISTORY · 足迹</p>
+              <h1>阅读历史</h1>
+              <p className="stats">
+                {history === null ? '正在载入…' : `${history.length} 条 · 按最近阅读排序`}
+              </p>
+            </header>
+            <div className="history-list">
+              {history !== null &&
+                historyGroups(history).map((g) => (
+                  <div key={g.key} className="history-group">
+                    <p className="history-group-label">{g.label}</p>
+                    {g.items.map((h) => (
+                      <button
+                        key={h.id}
+                        className="history-row"
+                        onClick={() => openBook(h)}
+                        onKeyDown={(e) => e.key === 'Enter' && openBook(h)}
+                      >
+                        <span
+                          className={'history-cover cover-' + (h.coverIdx % 5)}
+                          aria-hidden="true"
+                        >
+                          <span className="history-cover-title">{h.title.slice(0, 4)}</span>
+                        </span>
+                        <span className="history-info">
+                          <strong>{h.title}</strong>
+                          <em>
+                            {h.progress > 0
+                              ? `${h.chapterLabel || '阅读中'} · ${Math.round(h.progress)}%`
+                              : h.totalChapters > 0
+                                ? `共 ${h.totalChapters} 章`
+                                : '未开始'}
+                          </em>
+                        </span>
+                        <span className="history-time">{fmtReadTime(h.lastReadAt)}</span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              {history !== null && history.length === 0 && (
+                <p className="empty">还没有阅读记录。打开一本书，就会出现在这里。</p>
+              )}
             </div>
           </section>
         )}

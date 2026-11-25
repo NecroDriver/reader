@@ -42,7 +42,8 @@ import {
   dropNovelPullLog,
   getBookTitleById,
   closeDb,
-  listOnlineBookIds
+  listOnlineBookIds,
+  listReadHistory
 } from './db'
 import {
   getLanConfigView,
@@ -268,6 +269,7 @@ void (async (): Promise<void> => {
   })
 
   ipcMain.handle('library:getShelf', () => getShelf())
+  ipcMain.handle('history:list', () => listReadHistory())
   ipcMain.handle('library:importPaths', (_e, paths: string[]) => importLocalFiles(paths))
   ipcMain.handle('library:pickAndImport', async () => {
     const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]

@@ -24,6 +24,20 @@ export interface ImportOutcome {
   error?: string
 }
 
+export interface HistoryItem {
+  id: number
+  title: string
+  author: string
+  format: string
+  coverIdx: number
+  originPath: string
+  progress: number
+  chapterLabel: string
+  totalChapters: number
+  currentChapter: number
+  lastReadAt: number
+}
+
 export interface CloudCfgView {
   enabled: boolean
   provider: 'webdav' | 's3'
@@ -52,6 +66,23 @@ const api = {
       books: (s.books || []).map(mapBook),
       lastSyncAt: s.last_sync_at
     }
+  },
+  /** 阅读历史（按最近阅读时间倒序） */
+  listReadHistory: async (): Promise<HistoryItem[]> => {
+    const rows = (await ipcRenderer.invoke('history:list')) as Record<string, unknown>[]
+    return (rows || []).map((r) => ({
+      id: Number(r.id),
+      title: String(r.title),
+      author: String(r.author),
+      format: String(r.format),
+      coverIdx: Number(r.coverIdx),
+      originPath: String(r.originPath),
+      progress: Number(r.progress),
+      chapterLabel: String(r.chapterLabel),
+      totalChapters: Number(r.totalChapters),
+      currentChapter: Number(r.currentChapter),
+      lastReadAt: Number(r.lastReadAt)
+    }))
   },
   /** 拖放导入：渲染层 File 对象 → 真实路径 */
   pathForFile: (file: File): string => webUtils.getPathForFile(file),

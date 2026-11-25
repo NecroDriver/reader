@@ -293,6 +293,29 @@ export function setupDevMock(): void {
   if (window.mozhi) return
   window.mozhi = {
     getShelf: () => Promise.resolve(shelf()),
+    listReadHistory: () =>
+      Promise.resolve(
+        shelf()
+          .books.filter((b) => b.progress > 0)
+          .map((b) => {
+            const i = (b.id * 47) % 11
+            const lastReadAt = Date.now() - i * 3600000 - (b.id % 3) * 600000
+            return {
+              id: b.id,
+              title: b.title,
+              author: b.author,
+              format: b.format,
+              coverIdx: b.coverIdx,
+              originPath: b.originPath,
+              progress: b.progress,
+              chapterLabel: b.chapterLabel,
+              totalChapters: b.totalChapters,
+              currentChapter: b.currentChapter,
+              lastReadAt
+            }
+          })
+          .sort((a, b) => b.lastReadAt - a.lastReadAt)
+      ),
     openBook: (id: number) => Promise.resolve(openBook(id)),
     deleteBook: (bookId: number) => {
       deletedBooks.add(bookId)

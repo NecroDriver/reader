@@ -81,7 +81,21 @@ export interface Shelf {
   books: Book[]
   lastSyncAt: string
 }
-export type ViewName = 'shelf' | 'sources' | 'settings'
+export type ViewName = 'shelf' | 'history' | 'sources' | 'settings'
+
+export interface HistoryItem {
+  id: number
+  title: string
+  author: string
+  format: string
+  coverIdx: number
+  originPath: string
+  progress: number
+  chapterLabel: string
+  totalChapters: number
+  currentChapter: number
+  lastReadAt: number
+}
 
 export interface CoverPickResult {
   ok: boolean

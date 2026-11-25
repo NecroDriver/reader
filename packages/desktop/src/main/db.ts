@@ -151,6 +151,9 @@ function migrate(d: Database.Database): void {
   if (!bookCols.some((c) => c.name === 'download_url')) {
     d.exec("ALTER TABLE books ADD COLUMN download_url TEXT NOT NULL DEFAULT ''")
   }
+  if (!bookCols.some((c) => c.name === 'last_read_at')) {
+    d.exec('ALTER TABLE books ADD COLUMN last_read_at REAL NOT NULL DEFAULT 0')
+  }
   d.exec(`
     CREATE TABLE IF NOT EXISTS chapters (
       book_id INTEGER NOT NULL,
@@ -388,6 +391,7 @@ export function openBook(bookId: number): OpenedBook | null {
   const d = getDb()
   const b = d.prepare('SELECT * FROM books WHERE id = ?').get(bookId) as BookRow | undefined
   if (!b) return null
+  d.prepare('UPDATE books SET last_read_at = ? WHERE id = ?').run(Date.now(), bookId)
   const toc = d
     .prepare('SELECT idx, title, dup FROM chapters WHERE book_id = ? AND deleted = 0 ORDER BY idx')
     .all(bookId) as { idx: number; title: string; dup: number }[]
@@ -432,8 +436,8 @@ export function saveProgress(
 ): void {
   const d = getDb()
   d.prepare(
-    'UPDATE books SET current_chapter = ?, progress = ?, chapter_label = ?, cfi = ?, updated_at = ? WHERE id = ?'
-  ).run(chapterIdx, Math.max(0, Math.min(100, pct)), label.slice(0, 40), cfi, Date.now(), bookId)
+    'UPDATE books SET current_chapter = ?, progress = ?, chapter_label = ?, cfi = ?, updated_at = ?, last_read_at = ? WHERE id = ?'
+  ).run(chapterIdx, Math.max(0, Math.min(100, pct)), label.slice(0, 40), cfi, Date.now(), Date.now(), bookId)
 }
 
 /* ---------- 订阅源与文章 ---------- */
@@ -1084,6 +1088,7 @@ export interface SyncBookRow {
   sortAt: number
   updatedAt: number
   chaptersRev: number
+  lastReadAt: number
 }
 
 /** 手机拉书架：updated_at > since 的书（since=0 全量），不含章节正文 */
@@ -1091,7 +1096,7 @@ export function listSyncBooks(since: number): SyncBookRow[] {
   const rows = getDb()
     .prepare(
       `SELECT sync_uuid, title, author, format, cover_idx, cover_path, progress, chapter_label,
-              total_chapters, current_chapter, sort_at, updated_at, chapters_rev
+              total_chapters, current_chapter, sort_at, updated_at, chapters_rev, last_read_at
        FROM books WHERE updated_at > ? ORDER BY sort_at DESC`
     )
     .all(since) as Record<string, unknown>[]
@@ -1108,7 +1113,47 @@ export function listSyncBooks(since: number): SyncBookRow[] {
     currentChapter: Number(r.current_chapter),
     sortAt: Number(r.sort_at),
     updatedAt: Number(r.updated_at),
-    chaptersRev: Number(r.chapters_rev)
+    chaptersRev: Number(r.chapters_rev),
+    lastReadAt: Number(r.last_read_at)
+  }))
+}
+
+/* ---------- 阅读历史（last_read_at 仅在开书/存进度时更新）---------- */
+
+export interface ReadHistoryRow {
+  id: number
+  title: string
+  author: string
+  format: string
+  coverIdx: number
+  originPath: string
+  progress: number
+  chapterLabel: string
+  totalChapters: number
+  currentChapter: number
+  lastReadAt: number
+}
+
+export function listReadHistory(limit = 60): ReadHistoryRow[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT id, title, author, format, cover_idx, origin_path, progress, chapter_label,
+              total_chapters, current_chapter, last_read_at
+       FROM books WHERE last_read_at > 0 ORDER BY last_read_at DESC LIMIT ?`
+    )
+    .all(limit) as Record<string, unknown>[]
+  return rows.map((r) => ({
+    id: Number(r.id),
+    title: String(r.title),
+    author: String(r.author),
+    format: String(r.format),
+    coverIdx: Number(r.cover_idx),
+    originPath: String(r.origin_path),
+    progress: Number(r.progress),
+    chapterLabel: String(r.chapter_label),
+    totalChapters: Number(r.total_chapters),
+    currentChapter: Number(r.current_chapter),
+    lastReadAt: Number(r.last_read_at)
   }))
 }
 
