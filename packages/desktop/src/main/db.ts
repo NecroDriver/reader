@@ -800,6 +800,51 @@ export function countChapters(bookId: number): number {
   return r.next
 }
 
+/** 按 URL 查章 idx（gap 回填时定位插入锚点；同 URL 多行取最前） */
+export function getChapterIdxByUrl(bookId: number, url: string): number | null {
+  const r = getDb()
+    .prepare('SELECT MIN(idx) AS idx FROM chapters WHERE book_id = ? AND url = ?')
+    .get(bookId, url) as { idx: number | null }
+  return r.idx
+}
+
+/**
+ * 抓取补章插入到目录顺序位置（gap 回填：如旧库缺第一章，修复后更新应插回 idx 0 而非追加到末尾）。
+ * 与 appendChapters 的区别：带位移（后续章 idx+1、current_chapter 跟随）且保留 url 供增量去重。
+ */
+export function insertCrawledChapter(
+  bookId: number,
+  atIdx: number,
+  url: string,
+  title: string,
+  content: string
+): void {
+  const d = getDb()
+  const tx = d.transaction(() => {
+    // SQLite 的 UPDATE 不支持 ORDER BY：先抬到高空位再落回，避免 PK 瞬时冲突
+    d.prepare('UPDATE chapters SET idx = idx + 1000000 WHERE book_id = ? AND idx >= ?').run(bookId, atIdx)
+    d.prepare('UPDATE chapters SET idx = idx - 1000000 + 1 WHERE book_id = ? AND idx >= 1000000').run(bookId)
+    d.prepare('INSERT INTO chapters (book_id, idx, title, content, url) VALUES (?,?,?,?,?)').run(
+      bookId,
+      atIdx,
+      title.slice(0, 60),
+      content,
+      url
+    )
+    const b = d.prepare('SELECT current_chapter FROM books WHERE id = ?').get(bookId) as
+      | { current_chapter: number }
+      | undefined
+    if (b && b.current_chapter >= atIdx) {
+      d.prepare('UPDATE books SET current_chapter = current_chapter + 1 WHERE id = ?').run(bookId)
+    }
+    d.prepare(
+      `UPDATE books SET total_chapters = (SELECT COUNT(*) FROM chapters WHERE book_id = ? AND deleted = 0),
+              chapters_rev = chapters_rev + 1, updated_at = ? WHERE id = ?`
+    ).run(bookId, Date.now(), bookId)
+  })
+  tx()
+}
+
 /** 重抓本书：清空全部章节与进度（软删/编辑标记一并作废），抓取任务从零开始 */
 export function resetNovelChapters(bookId: number): void {
   const d = getDb()

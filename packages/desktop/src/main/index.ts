@@ -22,6 +22,8 @@ import {
   listChapterUrls,
   appendChapters,
   countChapters,
+  getChapterIdxByUrl,
+  insertCrawledChapter,
   updateNovelProgress,
   setBookChapterCount,
   setBookMeta,
@@ -387,6 +389,8 @@ void (async (): Promise<void> => {
     listChapterUrls,
     appendChapters,
     countChapters,
+    getChapterIdxByUrl,
+    insertCrawledChapter,
     updateNovelProgress,
     setBookChapterCount,
     listOnlineBookIds

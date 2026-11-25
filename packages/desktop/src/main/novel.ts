@@ -25,6 +25,10 @@ export interface TocParseResult {
 const CH_LINK_RE =
   /^\s*(第[0-9零〇一二三四五六七八九十百千万两]{1,12}[章节卷回部集话話](?:[\s:：、.．\-—·]{0,3}\S{0,30})?|序章|楔子|引子|尾声|终章|后记|番外\S{0,24}|chapter\s*\d+|第\s*\d+\s*话)\s*$/i
 
+/** 目录页 CTA 按钮文案（「开始阅读」等按钮与真实章链同 URL，先出现会把真章名挤掉） */
+const TOC_CTA_RE =
+  /^(开始阅读|立即阅读|从头阅读|免费阅读|在线阅读|点击阅读|继续阅读|进入阅读|阅读全文|开始|阅读)$/
+
 export function fetchBuffer(url: string, timeoutMs = 20000): Promise<Buffer> {
   return net
     .fetch(url, {
@@ -75,7 +79,13 @@ export function parseTocHtml(html: string, baseUrl: string): TocParseResult {
     if (abs.origin !== origin) continue
     const text = cleanText((a as HTMLAnchorElement).textContent ?? '')
     if (text.length < 2 || text.length > 64) continue
-    if (seen.has(abs.href)) continue
+    if (TOC_CTA_RE.test(text)) continue
+    if (seen.has(abs.href)) {
+      // 同 URL 再次出现且新标题更像章名（旧的是标签文案）→ 升级标题
+      const prev = all.find((c) => c.url === abs.href)
+      if (prev && !CH_LINK_RE.test(prev.title) && CH_LINK_RE.test(text)) prev.title = text
+      continue
+    }
     seen.add(abs.href)
     all.push({ url: abs.href, title: text })
   }

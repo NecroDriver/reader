@@ -33,6 +33,8 @@ export interface NovelDbApi {
   listChapterUrls(bookId: number): { url: string; deleted: number; hasContent: number }[]
   appendChapters(bookId: number, items: { url: string; title: string; content: string }[], startIndex: number): void
   countChapters(bookId: number): number
+  getChapterIdxByUrl(bookId: number, url: string): number | null
+  insertCrawledChapter(bookId: number, atIdx: number, url: string, title: string, content: string): void
   updateNovelProgress(bookId: number, cursorUrl: string, fetched: number, total: number, status: string): void
   setBookChapterCount(bookId: number): void
   listOnlineBookIds(): number[]
@@ -68,9 +70,9 @@ export async function crawlNovel(bookId: number): Promise<NovelJobState> {
   try {
     const toc = await parseTocPages(src.tocUrl)
     const tocUrls = new Set(toc.chapters.map((c) => c.url))
+    const tocPos = new Map(toc.chapters.map((c, i) => [c.url, i]))
     const existing = new Map(dbApi.listChapterUrls(bookId).map((c) => [c.url, c]))
     const todo: { url: string; title: string }[] = []
-    let startIdx = dbApi.countChapters(bookId)
     for (const ch of toc.chapters) {
       const ex = existing.get(ch.url)
       if (ex && (ex.deleted || ex.hasContent)) continue
@@ -80,6 +82,21 @@ export async function crawlNovel(bookId: number): Promise<NovelJobState> {
     state.done = 0
     logEvent('novel', 'info', `开始检查/抓取 book=${bookId}：目录 ${toc.chapters.length} 章，待抓 ${todo.length} 章`)
     emit(bookId)
+
+    /**
+     * 新章落位：优先「按目录顺序插回」（gap 回填，如旧库缺第一章）——
+     * 在目录中向后找第一个已入库的章作为锚点，插到它前面；找不到锚点（新尾巴章）追加到末尾。
+     */
+    const api = dbApi
+    const insertAt = (url: string): number | null => {
+      const pos = tocPos.get(url)
+      if (pos === undefined) return null
+      for (let j = pos + 1; j < toc.chapters.length && j <= pos + 50; j++) {
+        const anchor = api.getChapterIdxByUrl(bookId, toc.chapters[j].url)
+        if (anchor !== null) return anchor
+      }
+      return null
+    }
 
     for (let i = 0; i < todo.length; i++) {
       if (pauseFlags.has(bookId)) {
@@ -100,7 +117,12 @@ export async function crawlNovel(bookId: number): Promise<NovelJobState> {
         }
       }
       if (content) {
-        dbApi.appendChapters(bookId, [{ url: ch.url, title: ch.title, content }], startIdx + state.done)
+        const at = insertAt(ch.url)
+        if (at !== null) {
+          dbApi.insertCrawledChapter(bookId, at, ch.url, ch.title, content)
+        } else {
+          dbApi.appendChapters(bookId, [{ url: ch.url, title: ch.title, content }], dbApi.countChapters(bookId))
+        }
         state.done++
         dbApi.updateNovelProgress(bookId, ch.url, state.done, state.total, 'running')
       }
