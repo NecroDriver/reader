@@ -8,18 +8,6 @@ import { usePrefs } from '../theme'
 import { THEMES, type ThemeDef } from '../types'
 import { useSession } from '../session'
 import {
-  applySnapshotDb,
-  downloadSnapshotDb,
-  getRemoteManifest,
-  testConnection,
-  type RemoteManifest
-} from '../cloud'
-import {
-  countReadBooks,
-  loadProgressUploadedAt,
-  uploadPhoneProgress
-} from '../progress'
-import {
   formatSyncResult,
   getPair,
   pairManual,
@@ -29,22 +17,6 @@ import {
   type LanPair
 } from '../lansync'
 import { loadLanCursors } from '../storage'
-import {
-  loadAppliedInfo,
-  loadCloudConfig,
-  saveAppliedInfo,
-  saveCloudConfig,
-  type AppliedInfo,
-  type CloudConfig
-} from '../storage'
-
-type Phase = 'idle' | 'testing' | 'fetching' | 'confirm' | 'applying' | 'done' | 'uploadingProg'
-
-function fmtBytes(n: number): string {
-  if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`
-  if (n >= 1024) return `${(n / 1024).toFixed(0)} KB`
-  return `${n} B`
-}
 
 function fmtDate(iso: string): string {
   const d = new Date(iso)
@@ -58,16 +30,6 @@ export default function SettingsScreen(): React.JSX.Element {
   const { theme } = usePrefs()
   const t: ThemeDef = THEMES[theme]
   const session = useSession()
-
-  const [cfg, setCfg] = useState<CloudConfig | null>(null)
-  const [remote, setRemote] = useState<RemoteManifest | null>(null)
-  const [applied, setApplied] = useState<AppliedInfo | null>(null)
-  const [phase, setPhase] = useState<Phase>('idle')
-  const [msg, setMsg] = useState('')
-  const [err, setErr] = useState('')
-  const [zipBytes, setZipBytes] = useState<Uint8Array | null>(null)
-  const [readCount, setReadCount] = useState(0)
-  const [progUploadedAt, setProgUploadedAt] = useState<number | null>(null)
 
   /* LAN 设备同步 */
   const [lanPair, setLanPair] = useState<LanPair | null>(null)
@@ -83,10 +45,6 @@ export default function SettingsScreen(): React.JSX.Element {
 
   useEffect(() => {
     void (async () => {
-      setCfg(await loadCloudConfig())
-      setApplied(await loadAppliedInfo())
-      setReadCount(await countReadBooks(db))
-      setProgUploadedAt(await loadProgressUploadedAt())
       setLanPair(await getPair())
       const c = await loadLanCursors()
       setLanLastAt(c.lastSyncAt ?? null)
@@ -134,97 +92,6 @@ export default function SettingsScreen(): React.JSX.Element {
     setLanErr('')
   }
 
-  async function saveAndTest(): Promise<void> {
-    if (!cfg) return
-    setErr('')
-    setMsg('')
-    setPhase('testing')
-    try {
-      await saveCloudConfig(cfg)
-      const r = await testConnection(cfg)
-      setMsg(`${r}，配置已保存`)
-      const m = await getRemoteManifest(cfg)
-      setRemote(m)
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
-      await saveCloudConfig(cfg).catch(() => undefined)
-    } finally {
-      setPhase('idle')
-    }
-  }
-
-  async function refreshRemote(): Promise<void> {
-    if (!cfg) return
-    setErr('')
-    try {
-      setRemote(await getRemoteManifest(cfg))
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
-    }
-  }
-
-  async function startDownload(): Promise<void> {
-    if (!cfg) return
-    setErr('')
-    setMsg('')
-    setPhase('fetching')
-    try {
-      const { bytes } = await downloadSnapshotDb(cfg)
-      setZipBytes(bytes)
-      const m = await getRemoteManifest(cfg)
-      setRemote(m)
-      setPhase('confirm')
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
-      setPhase('idle')
-    }
-  }
-
-  async function applyNow(): Promise<void> {
-    if (!zipBytes) return
-    setPhase('applying')
-    try {
-      // 移动端显示偏好（主题/字号/行距）在恢复前取出，恢复后写回
-      const keys = ['mobile_theme', 'mobile_read_size', 'mobile_read_lh']
-      const keep: Record<string, string | null> = {}
-      for (const k of keys) {
-        const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', k)
-        keep[k] = row?.value ?? null
-      }
-      const r = await applySnapshotDb(db, zipBytes, keep)
-      const info: AppliedInfo = { at: Date.now(), books: r.books, chapters: r.chapters }
-      await saveAppliedInfo(info)
-      setApplied(info)
-      setZipBytes(null)
-      setMsg(`已恢复 ${r.books} 本书 · ${r.chapters} 章`)
-      setPhase('done')
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
-      setPhase('idle')
-    }
-  }
-
-  function cancelConfirm(): void {
-    setZipBytes(null)
-    setPhase('idle')
-  }
-
-  async function uploadProgress(): Promise<void> {
-    if (!cfg) return
-    setErr('')
-    setMsg('')
-    setPhase('uploadingProg')
-    try {
-      const n = await uploadPhoneProgress(db, cfg)
-      setProgUploadedAt(Date.now())
-      setMsg(`已上传 ${n} 本书的阅读进度`)
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
-    } finally {
-      setPhase('idle')
-    }
-  }
-
   const s = StyleSheet.create({
     wrap: { flex: 1, backgroundColor: t.bg },
     scroll: { flex: 1 },
@@ -262,7 +129,7 @@ export default function SettingsScreen(): React.JSX.Element {
       borderRadius: 8,
       paddingVertical: 11,
       paddingHorizontal: 18,
-      opacity: phase === 'idle' ? 1 : 0.5
+      opacity: lanBusy ? 0.5 : 1
     },
     btnGhost: {
       borderWidth: 1,
@@ -293,15 +160,9 @@ export default function SettingsScreen(): React.JSX.Element {
       borderTopColor: t.line,
       lineHeight: 18
     },
-    msg: { fontSize: 12.5, color: t.seal, marginTop: 12, lineHeight: 18 },
-    msgErr: { fontSize: 12.5, color: t.seal, marginTop: 12, lineHeight: 18 },
     status: { fontSize: 12, color: t.muted, marginTop: 14, lineHeight: 17 },
     scanBox: { height: 260, borderRadius: 10, overflow: 'hidden', backgroundColor: '#1c1c1a', justifyContent: 'flex-end', padding: 12, marginTop: 6 }
   })
-
-  const busy = phase === 'testing' || phase === 'fetching' || phase === 'applying' || phase === 'uploadingProg'
-  const busyText =
-    phase === 'testing' ? '正在测试连接…' : phase === 'fetching' ? '正在下载快照…（约 19 MB，请稍候）' : phase === 'applying' ? '正在写入数据库…' : phase === 'uploadingProg' ? '正在上传阅读进度…' : ''
 
   return (
     <SafeAreaView style={s.wrap} edges={['top', 'bottom']}>
@@ -322,12 +183,12 @@ export default function SettingsScreen(): React.JSX.Element {
                 <>
                   <Text style={s.cardTitle}>当前身份：游客</Text>
                   <Text style={s.cardLine}>
-                    游客仅可浏览与阅读演示书库；云同步、云端恢复与进度回传需要注册账号，注册后拥有独立书库。
+                    游客仅可浏览与阅读演示书库；注册账号后可拥有独立书库并与桌面端同步。
                   </Text>
                   <View style={s.btnRow}>
                     <Pressable
-                      style={[s.btnPrimary, busy ? s.btnDisabled : null]}
-                      disabled={busy}
+                      style={[s.btnPrimary, lanBusy ? s.btnDisabled : null]}
+                      disabled={lanBusy}
                       onPress={() => void session.logout()}
                       accessibilityLabel="注册或登录账号"
                     >
@@ -341,8 +202,8 @@ export default function SettingsScreen(): React.JSX.Element {
                   <Text style={s.cardLine}>独立书库 · 账号级数据隔离；退出后需重新输入口令进入。</Text>
                   <View style={s.btnRow}>
                     <Pressable
-                      style={[s.btnGhost, busy ? s.btnDisabled : null]}
-                      disabled={busy}
+                      style={[s.btnGhost, lanBusy ? s.btnDisabled : null]}
+                      disabled={lanBusy}
                       onPress={() => void session.logout()}
                       accessibilityLabel="退出登录"
                     >
@@ -353,180 +214,6 @@ export default function SettingsScreen(): React.JSX.Element {
               )}
             </View>
           </View>
-        )}
-
-        {session !== null && session.isGuest && (
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>云同步 · WebDAV</Text>
-            <View style={s.card}>
-              <Text style={s.cardTitle}>游客模式下不可用</Text>
-              <Text style={s.cardLine}>
-                云端书库恢复、快照下载与进度回传均需要注册账号。注册后可与桌面端共用同一份 WebDAV 快照。
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {!(session !== null && session.isGuest) && (
-          <>
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>云同步 · WebDAV</Text>
-          <Text style={s.sectionSub}>
-            从桌面端墨纸上传的快照下载到手机。填写与桌面端相同的 WebDAV 服务、目录与账号
-            （坚果云请使用「应用密码」，不是登录密码）。
-          </Text>
-
-          <Text style={s.label}>服务器地址</Text>
-          <TextInput
-            style={s.input}
-            value={cfg?.url ?? ''}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            placeholder="https://dav.jianguoyun.com/dav"
-            placeholderTextColor={t.muted}
-            editable={!busy && cfg !== null}
-            onChangeText={(v): void => setCfg((c) => (c ? { ...c, url: v.trim() } : c))}
-          />
-          <Text style={s.label}>远程目录</Text>
-          <TextInput
-            style={s.input}
-            value={cfg?.dir ?? ''}
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder="mozhi"
-            placeholderTextColor={t.muted}
-            editable={!busy && cfg !== null}
-            onChangeText={(v): void => setCfg((c) => (c ? { ...c, dir: v.trim() } : c))}
-          />
-          <Text style={s.label}>账号</Text>
-          <TextInput
-            style={s.input}
-            value={cfg?.username ?? ''}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            placeholder="you@example.com"
-            placeholderTextColor={t.muted}
-            editable={!busy && cfg !== null}
-            onChangeText={(v): void => setCfg((c) => (c ? { ...c, username: v.trim() } : c))}
-          />
-          <Text style={s.label}>应用密码</Text>
-          <TextInput
-            style={s.input}
-            value={cfg?.password ?? ''}
-            autoCapitalize="none"
-            autoCorrect={false}
-            secureTextEntry
-            placeholder="••••••••"
-            placeholderTextColor={t.muted}
-            editable={!busy && cfg !== null}
-            onChangeText={(v): void => setCfg((c) => (c ? { ...c, password: v } : c))}
-          />
-
-          <View style={s.btnRow}>
-            <Pressable
-              style={[s.btnPrimary, busy || cfg === null ? s.btnDisabled : null]}
-              disabled={busy || cfg === null}
-              onPress={() => void saveAndTest()}
-            >
-              <Text style={s.btnText}>保存并测试</Text>
-            </Pressable>
-          </View>
-          {msg !== '' && <Text style={s.msg}>{msg}</Text>}
-          {err !== '' && <Text style={s.msgErr}>⚠ {err}</Text>}
-        </View>
-
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>云端快照</Text>
-          {remote === null ? (
-            <View style={s.card}>
-              <Text style={s.cardLine}>
-                {err !== '' ? '无法读取远端信息' : cfg === null ? '加载中…' : '「保存并测试」后显示远端快照信息；尚无快照时请先在桌面端上传。'}
-              </Text>
-            </View>
-          ) : (
-            <View style={s.card}>
-              <Text style={s.cardTitle}>{fmtDate(remote.createdAt)} 的快照</Text>
-              <Text style={s.cardLine}>
-                {remote.books} 本书 · {remote.chapters} 章 · {fmtBytes(remote.zipBytes)}
-              </Text>
-              <Text style={s.cardLine}>由桌面端墨纸 v{remote.app} 上传</Text>
-            </View>
-          )}
-          {applied !== null && (
-            <Text style={s.status}>
-              本机上次恢复：{fmtDate(new Date(applied.at).toISOString())} · {applied.books} 本书 · {applied.chapters} 章
-            </Text>
-          )}
-          <View style={s.btnRow}>
-            <Pressable
-              style={[s.btnGhost, busy ? s.btnDisabled : null]}
-              disabled={busy}
-              onPress={() => void refreshRemote()}
-            >
-              <Text style={s.btnTextGhost}>刷新远端信息</Text>
-            </Pressable>
-            <Pressable
-              style={[s.btnPrimary, busy || remote === null ? s.btnDisabled : null]}
-              disabled={busy || remote === null}
-              onPress={() => void startDownload()}
-            >
-              <Text style={s.btnText}>下载并应用</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {phase === 'confirm' && (
-          <View style={[s.card, { borderColor: t.seal }]}>
-            <Text style={s.cardTitle}>应用云端快照？</Text>
-            <Text style={s.cardAlert}>
-              将用云端快照{remote ? `（${remote.books} 本书 · ${remote.chapters} 章）` : ''}替换本机书库数据。
-              本机的阅读进度会被快照中的进度覆盖；主题与排版设置保留。
-            </Text>
-            <View style={s.btnRow}>
-              <Pressable style={s.btnGhost} onPress={cancelConfirm}>
-                <Text style={s.btnTextGhost}>取消</Text>
-              </Pressable>
-              <Pressable style={s.btnPrimary} onPress={() => void applyNow()}>
-                <Text style={s.btnText}>确认应用</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {busy && <Text style={s.status}>{busyText}</Text>}
-        {phase === 'done' && (
-          <View style={s.btnRow}>
-            <Pressable style={s.btnPrimary} onPress={() => router.replace('/')}>
-              <Text style={s.btnText}>回到书架</Text>
-            </Pressable>
-          </View>
-        )}
-
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>进度回传</Text>
-          <View style={s.card}>
-            <Text style={s.cardTitle}>{readCount} 本书有阅读进度</Text>
-            <Text style={s.cardLine}>
-              把手机上的阅读进度上传到云端（不上传书库本体）。在桌面端墨纸的
-              「设置 · 云同步 · 手机进度」里检查并吸收。
-            </Text>
-            {progUploadedAt !== null && (
-              <Text style={s.cardLine}>上次上传：{fmtDate(new Date(progUploadedAt).toISOString())}</Text>
-            )}
-            <View style={s.btnRow}>
-              <Pressable
-                style={[s.btnPrimary, phase === 'uploadingProg' || cfg === null ? s.btnDisabled : null]}
-                disabled={phase === 'uploadingProg' || cfg === null}
-                onPress={() => void uploadProgress()}
-              >
-                <Text style={s.btnText}>{phase === 'uploadingProg' ? '上传中…' : '上传阅读进度'}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-          </>
         )}
 
         <View style={s.section}>
@@ -661,8 +348,7 @@ export default function SettingsScreen(): React.JSX.Element {
         <View style={[s.section, { marginBottom: 40 }]}>
           <Text style={s.sectionTitle}>关于</Text>
           <Text style={s.sectionSub}>
-            墨纸移动端 · 阅读书架。推荐用「设备同步（局域网）」直连桌面端获取书库；
-            也可用「云同步」下载桌面端上传的 WebDAV 快照作为备份通道。
+            墨纸移动端 · 阅读书架。用「设备同步（局域网）」直连桌面端获取书库，离线全功能。
           </Text>
         </View>
       </ScrollView>

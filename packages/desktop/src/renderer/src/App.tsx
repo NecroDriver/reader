@@ -2,8 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import ReaderView from './ReaderView'
 import BookDetailModal, { coverSrc } from './BookDetailModal'
 import LoginScreen from './LoginScreen'
-import CloudSyncPanel from './CloudSyncPanel'
-import PgSyncPanel from './PgSyncPanel'
 import LanSyncPanel from './LanSyncPanel'
 import SliderSwitch from './SliderSwitch'
 import { setupDevMock } from './devMock'
@@ -803,12 +801,12 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
 
               {isGuest ? (
                 <div className="settings-group">
-                  <p className="group-eyebrow">CLOUD SYNC · 云同步</p>
+                  <p className="group-eyebrow">DEVICE SYNC · 设备同步</p>
                   <div className="guest-lock">
                     <span className="guest-lock-mark">锁</span>
                     <div className="guest-lock-info">
                       <strong>游客模式下不可用</strong>
-                      <span>注册账号后可配置 WebDAV / S3 兼容存储，手动上传与恢复快照。</span>
+                      <span>注册账号后可与手机配对，局域网同步书架与阅读进度。</span>
                     </div>
                     <button
                       type="button"
@@ -825,11 +823,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                   </div>
                 </div>
               ) : (
-                <>
-                  <LanSyncPanel onChanged={(m) => pushToast(m)} />
-                  <CloudSyncPanel onChanged={(m) => pushToast(m)} />
-                  <PgSyncPanel onChanged={(m) => pushToast(m)} />
-                </>
+                <LanSyncPanel onChanged={(m) => pushToast(m)} />
               )}
 
               <div className="settings-group">
