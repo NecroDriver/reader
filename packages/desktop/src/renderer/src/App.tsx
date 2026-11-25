@@ -18,12 +18,17 @@ const RefreshIcon = (
   <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v3h-3" /></svg>
 )
 
+const ListIcon = (
+  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M6.5 5h9M6.5 10h9M6.5 15h9M3.5 5h.01M3.5 10h.01M3.5 15h.01" /></svg>
+)
+
+const CloseIcon = (
+  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M5 5l10 10M15 5L5 15" /></svg>
+)
+
 const NavIcon = {
   shelf: (
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3.5 4.5h5v11h-5zM11.5 4.5h5v11h-5zM3.5 9.5h5M11.5 9.5h5" /></svg>
-  ),
-  sources: (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 16V8.5M10 16V4M16 16v-6" /></svg>
   ),
   history: (
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="10" r="7" /><path d="M10 6.5V10l2.5 2" /></svg>
@@ -96,10 +101,8 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([])
   const [updatingAll, setUpdatingAll] = useState(false)
   const [history, setHistory] = useState<HistoryItem[] | null>(null)
-  const [novelUrl, setNovelUrl] = useState('')
-  const [novelErr, setNovelErr] = useState('')
-  const [novelBusy, setNovelBusy] = useState(false)
   const [novelJobs, setNovelJobs] = useState<Record<number, NovelJobState>>({})
+  const [logOpen, setLogOpen] = useState(false)
   const [proxy, setProxy] = useState({ on: false, url: '' })
   const [proxyTesting, setProxyTesting] = useState(false)
   const [pullLogs, setPullLogs] = useState<PullLogEntry[]>([])
@@ -407,56 +410,16 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
     if (b.originPath || b.format === 'NOVEL') setReaderBookId(b.id)
   }
 
-  /* ---------- 在线小说 ---------- */
-  const submitNovel = useCallback(async () => {
-    if (!window.mozhi || novelBusy) return
-    if (guestGate('添加小说')) return
-    const url = novelUrl.trim()
-    if (!url) {
-      setNovelErr('请填写小说目录页地址')
-      return
+  /* 抓取活动：正在跑的作业数（书架「同步记录」按钮徽标） */
+  const runningCount = Object.values(novelJobs).filter((j) => j.status === 'running').length
+  useEffect(() => {
+    if (!logOpen) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setLogOpen(false)
     }
-    const full = /^https?:\/\//i.test(url) ? url : `https://${url}`
-    try {
-      new URL(full)
-    } catch {
-      setNovelErr('地址格式不正确')
-      return
-    }
-    setNovelErr('')
-    setNovelBusy(true)
-    try {
-      const r = await window.mozhi.createNovel(full)
-      if (r.ok && r.bookId !== undefined) {
-        setNovelJobs((j) => ({
-          ...j,
-          [r.bookId!]: { bookId: r.bookId!, status: 'running', done: 0, total: r.chapters ?? 0, currentTitle: '' }
-        }))
-        // 同步记录立刻出现「抓取中」条目（不等第一章抓完的首个进度事件）
-        const d0 = new Date()
-        setPullLogs((ls) => [
-          {
-            at: `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`,
-            name: r.title ?? '',
-            added: 0,
-            ok: true,
-            kind: 'novel' as const,
-            bookId: r.bookId!,
-            running: true,
-            done: 0,
-            total: r.chapters ?? 0
-          },
-          ...ls
-        ].slice(0, 30))
-        pushToast(`开始抓取《${r.title}》· 共 ${r.chapters} 章`)
-        setNovelUrl('')
-      } else {
-        setNovelErr(r.error ?? '创建失败')
-      }
-    } finally {
-      setNovelBusy(false)
-    }
-  }, [novelBusy, novelUrl, pushToast, isGuest])
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [logOpen])
 
   const onlineCount = shelf?.books.filter((b) => b.format === 'NOVEL').length ?? 0
 
@@ -578,14 +541,6 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
             {!navCollapsed && <span>历史</span>}
           </button>
           <button
-            className={'nav-item' + (view === 'sources' ? ' active' : '')}
-            onClick={() => go('sources')}
-            title={navCollapsed ? '书源' : undefined}
-          >
-            {NavIcon.sources}
-            {!navCollapsed && <span>书源</span>}
-          </button>
-          <button
             className={'nav-item' + (view === 'settings' ? ' active' : '')}
             onClick={() => go('settings')}
             title={navCollapsed ? '设置' : undefined}
@@ -653,6 +608,14 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                   </p>
                 </div>
                 <div className="head-actions shelf-actions">
+                  <button
+                    className={'btn ghost log-toggle' + (runningCount > 0 ? ' has-run' : '')}
+                    onClick={() => setLogOpen(true)}
+                    aria-label="打开同步记录"
+                  >
+                    {ListIcon}
+                    {runningCount > 0 ? `同步中 ${runningCount}` : '同步记录'}
+                  </button>
                   <button className="btn ghost" onClick={pickImport}>
                     导入图书
                   </button>
@@ -908,101 +871,6 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
               {history !== null && history.length === 0 && (
                 <p className="empty">还没有阅读记录。打开一本书，就会出现在这里。</p>
               )}
-            </div>
-          </section>
-        )}
-
-        {view === 'sources' && (
-          <section className="view">
-            <header className="view-head">
-              <p className="eyebrow">SOURCES · 书源</p>
-              <h1>书源</h1>
-              <p className="stats">
-                {shelf
-                  ? `${onlineCount} 本在线小说 · ${shelf.books.length - onlineCount} 本本地`
-                  : '正在载入…'}
-              </p>
-            </header>
-
-            <div className="sources-layout">
-              <div className="source-form novel first">
-                <h2 className="form-title">添加小说</h2>
-                <div className="form-row">
-                  <label className="sf-field grow2">
-                    <span className="sf-label">小说目录页地址</span>
-                    <input
-                      className="sf-input"
-                      type="url"
-                      placeholder="小说目录页（章节列表）网址"
-                      value={novelUrl}
-                      onChange={(e) => {
-                        setNovelErr('')
-                        setNovelUrl(e.target.value)
-                      }}
-                      onKeyDown={(e) => e.key === 'Enter' && submitNovel()}
-                    />
-                  </label>
-                  <button className={'btn primary sf-submit' + (novelBusy ? ' loading' : '')} onClick={submitNovel} disabled={novelBusy}>
-                    {novelBusy ? '正在解析…' : '抓取整本'}
-                  </button>
-                </div>
-                {novelErr && <p className="form-err">{novelErr}</p>}
-                <p className="form-hint">
-                  解析目录页章节列表后自动逐章抓取成书（限速 1.5-3 秒/章，可暂停续抓）；完成后在书架阅读，支持导出 txt。
-                </p>
-              </div>
-
-              <div className="pull-log-card">
-              <h2 className="form-title">同步记录</h2>
-              {pullLogs.length === 0 ? (
-                <p className="empty">暂无同步记录，添加一本小说或点书架「更新全部」试试</p>
-              ) : (
-                <ul className="pull-log-list">
-                  {pullLogs.slice(0, 8).map((l, i) =>
-                    l.kind === 'novel' ? (
-                      <li key={i} className={'pull-log-row novel' + (l.ok ? '' : ' fail')}>
-                        <span className="pull-log-at">{l.at}</span>
-                        <span className="pull-log-name">《{l.name || '小说'}》</span>
-                        {l.running || l.paused ? (
-                          <span className="pull-log-res novel-live">
-                            <span className="pull-log-track" aria-hidden="true">
-                              <span
-                                style={{
-                                  width: `${l.total ? Math.min(100, Math.round(((l.done ?? 0) / l.total) * 100)) : 8}%`
-                                }}
-                              />
-                            </span>
-                            {l.paused
-                              ? `已暂停 ${l.done ?? 0}/${l.total ?? 0}`
-                              : l.total
-                                ? `抓取中 ${l.done ?? 0}/${l.total}`
-                                : '正在解析目录…'}
-                          </span>
-                        ) : (
-                          <span className={'pull-log-res' + (l.ok && l.added > 0 ? ' added' : '')}>
-                            {l.ok
-                              ? l.added > 0
-                                ? `抓取完成 · 共 ${l.added} 章`
-                                : '没有新章节'
-                              : `失败：${l.error?.slice(0, 40) ?? '未知错误'}`}
-                          </span>
-                        )}
-                      </li>
-                    ) : (
-                      <li key={i} className={'pull-log-row legacy' + (l.ok ? '' : ' fail')}>
-                        <span className="pull-log-at">{l.at}</span>
-                        <span className="pull-log-name">{l.name || '未命名源'}</span>
-                        <span className={'pull-log-res' + (l.added > 0 ? ' added' : '')}>
-                          {l.ok
-                            ? l.note ?? (l.added > 0 ? `新增 ${l.added} 篇` : '无新内容')
-                            : `失败：${l.error?.slice(0, 40) ?? '未知错误'}`}
-                        </span>
-                      </li>
-                    )
-                  )}
-                </ul>
-              )}
-              </div>
             </div>
           </section>
         )}
@@ -1311,6 +1179,70 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
       </main>
 
       <div className="drop-overlay">松开 · 导入本地图书</div>
+
+      {logOpen && (
+        <>
+          <div className="log-mask" onClick={() => setLogOpen(false)} aria-hidden="true" />
+          <aside className="log-drawer" aria-label="同步记录">
+            <header className="log-head">
+              <h2>同步记录</h2>
+              <button className="icon-btn" onClick={() => setLogOpen(false)} aria-label="关闭同步记录">
+                {CloseIcon}
+              </button>
+            </header>
+            <div className="log-body">
+              {pullLogs.length === 0 ? (
+                <p className="empty">暂无同步记录。去书城添加一本小说，或点「更新全部」。</p>
+              ) : (
+                <ul className="pull-log-list">
+                  {pullLogs.map((l, i) =>
+                    l.kind === 'novel' ? (
+                      <li key={i} className={'pull-log-row novel' + (l.ok ? '' : ' fail')}>
+                        <span className="pull-log-at">{l.at}</span>
+                        <span className="pull-log-name">《{l.name || '小说'}》</span>
+                        {l.running || l.paused ? (
+                          <span className="pull-log-res novel-live">
+                            <span className="pull-log-track" aria-hidden="true">
+                              <span
+                                style={{
+                                  width: `${l.total ? Math.min(100, Math.round(((l.done ?? 0) / l.total) * 100)) : 8}%`
+                                }}
+                              />
+                            </span>
+                            {l.paused
+                              ? `已暂停 ${l.done ?? 0}/${l.total ?? 0}`
+                              : l.total
+                                ? `抓取中 ${l.done ?? 0}/${l.total}`
+                                : '正在解析目录…'}
+                          </span>
+                        ) : (
+                          <span className={'pull-log-res' + (l.ok && l.added > 0 ? ' added' : '')}>
+                            {l.ok
+                              ? l.added > 0
+                                ? `抓取完成 · 共 ${l.added} 章`
+                                : '没有新章节'
+                              : `失败：${l.error?.slice(0, 40) ?? '未知错误'}`}
+                          </span>
+                        )}
+                      </li>
+                    ) : (
+                      <li key={i} className={'pull-log-row legacy' + (l.ok ? '' : ' fail')}>
+                        <span className="pull-log-at">{l.at}</span>
+                        <span className="pull-log-name">{l.name || '未命名源'}</span>
+                        <span className={'pull-log-res' + (l.added > 0 ? ' added' : '')}>
+                          {l.ok
+                            ? l.note ?? (l.added > 0 ? `新增 ${l.added} 篇` : '无新内容')
+                            : `失败：${l.error?.slice(0, 40) ?? '未知错误'}`}
+                        </span>
+                      </li>
+                    )
+                  )}
+                </ul>
+              )}
+            </div>
+          </aside>
+        </>
+      )}
       {detailBookId !== null && (
         <BookDetailModal
           bookId={detailBookId}

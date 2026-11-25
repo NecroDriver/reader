@@ -712,12 +712,7 @@ body.dropping .drop-overlay { display: flex; }
 .btn.loading { opacity: .7; pointer-events: none; }
 .btn.loading svg { animation: mini-spin .8s linear infinite; }
 
-/* 添加表单 */
-.source-form {
-  max-width: 860px; margin-top: var(--sp-6);
-  padding: var(--sp-5);
-  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
-}
+/* 表单公共件（BookDetail / 代理设置 / 书城等复用） */
 .form-title { margin: 0 0 var(--sp-4); font-size: 14px; color: var(--ink); letter-spacing: .06em; }
 .form-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
 .sf-input {
@@ -729,7 +724,6 @@ body.dropping .drop-overlay { display: flex; }
 .sf-input.grow { flex: 1 1 140px; }
 .sf-input.grow2 { flex: 2 1 220px; }
 .sf-input:focus-visible { outline: 2px solid var(--seal); outline-offset: 1px; }
-.source-form.error .sf-input.grow2 { border-color: #b3261e; animation: shake .3s var(--ease); }
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-4px); } 75% { transform: translateX(4px); }
@@ -769,24 +763,6 @@ body.dropping .drop-overlay { display: flex; }
 .sf-field.grow2 { flex: 2 1 220px; }
 .sf-label { font-size: 11.5px; color: var(--muted); letter-spacing: .08em; }
 .sf-submit { align-self: flex-end; }
-.source-form.novel { border-left: 2px solid var(--seal); }
-.source-form.novel.first { margin-top: 0; }
-/* 书源页双栏：左=添加小说（定宽贴顶），右=同步记录（弹性占满） */
-.sources-layout {
-  display: grid;
-  grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
-  gap: var(--sp-4); align-items: start;
-  margin-top: var(--sp-6);
-}
-.sources-layout .source-form { margin-top: 0; max-width: none; position: sticky; top: var(--sp-4); }
-.sources-layout .source-form .form-row { flex-direction: column; align-items: stretch; }
-.sources-layout .source-form .sf-field { flex: 1 1 auto; }
-.sources-layout .source-form .sf-submit { align-self: stretch; }
-.sources-layout .pull-log-card { margin-bottom: 0; }
-@media (max-width: 1120px) {
-  .sources-layout { grid-template-columns: 1fr; }
-  .sources-layout .source-form { position: static; }
-}
 /* 正文编辑器 */
 .ch-editor { display: flex; flex-direction: column; gap: var(--sp-3); }
 .ch-edit-area {
@@ -814,6 +790,37 @@ body.dropping .drop-overlay { display: flex; }
 .pull-log-card {
   background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
   padding: 14px 16px 10px; margin-bottom: var(--sp-5);
+}
+
+/* 同步记录抽屉（书架头部「同步记录」打开；书源页已并入书城） */
+.log-mask {
+  position: fixed; inset: 0; z-index: 90;
+  background: color-mix(in srgb, var(--ink) 35%, transparent);
+}
+.log-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 90;
+  width: min(420px, 92vw);
+  display: flex; flex-direction: column;
+  background: var(--bg); border-left: 1px solid var(--line-strong);
+  box-shadow: -8px 0 24px color-mix(in srgb, var(--ink) 18%, transparent);
+  animation: logIn var(--t, 160ms) var(--ease) both;
+}
+@keyframes logIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.log-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--line);
+}
+.log-head h2 { margin: 0; font-family: var(--font-serif); font-size: 15px; letter-spacing: .12em; color: var(--ink); }
+.log-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: var(--sp-3) var(--sp-5) var(--sp-5);
+}
+.log-body .empty { margin: var(--sp-5) 0; }
+.log-body .pull-log-row { align-items: baseline; }
+.log-toggle.has-run { color: var(--seal); border-color: color-mix(in srgb, var(--seal) 45%, var(--line)); }
+@media (prefers-reduced-motion: reduce) {
+  .log-drawer { animation: none; }
 }
 .pull-log-list { list-style: none; margin: 8px 0 0; padding: 0; }
 .pull-log-row {
