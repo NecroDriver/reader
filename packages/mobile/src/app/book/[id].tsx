@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
 import {
@@ -9,8 +9,13 @@ import {
   View
 } from 'react-native'
 import { LH_CHOICES, MAX_SIZE, MIN_SIZE, usePrefs } from '../../theme'
-import { getBook, getChapter, getToc, saveProgress } from '../../db'
+import { getBook, getChapter, getSetting, getToc, saveProgress, setSetting } from '../../db'
 import { THEMES, type TocRow } from '../../types'
+
+/* 目录分页：一章一行渲染成本 ≈37px；千章书全量渲染必卡，
+   每次只挂 PAGE 行，滚动近底自动追加；打开时窗口直接落在当前章。 */
+const PAGE = 150
+const ROW_EST = 37
 
 export default function Reader(): React.JSX.Element | null {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -28,8 +33,13 @@ export default function Reader(): React.JSX.Element | null {
   const [pct, setPct] = useState(0)
   const [pop, setPop] = useState(false)
   const [tocOpen, setTocOpen] = useState(false)
+  /* 目录：倒序开关（持久 settings 表）+ 已渲染窗口 [tocStart, tocStart+tocLimit) */
+  const [tocDesc, setTocDesc] = useState(false)
+  const [tocStart, setTocStart] = useState(0)
+  const [tocLimit, setTocLimit] = useState(PAGE)
 
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null)
+  const tocScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null)
   const last = useRef({ idx: 0, pct: 0, label: '' })
   /* 章节即时值：onScroll 的闭包会滞后于 goChapter 的 setChIdx，
      scrollTo(0) 触发的迟到滚动事件若用旧闭包会把上一章写回进度表 */
@@ -55,7 +65,7 @@ export default function Reader(): React.JSX.Element | null {
     []
   )
 
-  /* 打开书：读元数据 + 恢复章节 */
+  /* 打开书：读元数据 + 恢复章节 + 读目录排序偏好 */
   useEffect(() => {
     let alive = true
     void (async () => {
@@ -71,6 +81,8 @@ export default function Reader(): React.JSX.Element | null {
       chRef.current = { idx: start, title: b.chapter_label }
       setChIdx(start)
       note(start, b.progress, b.chapter_label)
+      const d = await getSetting(db, 'toc_desc')
+      if (alive && d === '1') setTocDesc(true)
     })()
     return () => {
       alive = false
@@ -132,7 +144,52 @@ export default function Reader(): React.JSX.Element | null {
     return () => clearTimeout(h)
   }, [pct, flush])
 
+  /* 目录展示序：倒序时整表反转（useMemo 须在早退 return 之前调用） */
+  const ordered = useMemo(
+    () => (tocDesc ? [...toc].reverse() : toc),
+    [toc, tocDesc]
+  )
+
   if (!id) return null
+
+  /* ---------- 目录展示：排序 + 分页窗口（focusRow 等在渲染体中定义） ---------- */
+  const rendered = ordered.slice(tocStart, tocStart + tocLimit)
+  /* 当前章在展示序中的行号（倒序时从尾数） */
+  const curRow = tocDesc ? toc.length - 1 - chIdx : chIdx
+
+  /* 窗口平移到含 row ± 缓冲（前 40 后 110），并滚过去 */
+  const focusRow = (row: number): void => {
+    setTocStart(Math.max(0, row - 40))
+    setTocLimit(PAGE)
+    setTimeout(() => {
+      tocScrollRef.current?.scrollTo({ y: Math.max(0, (row - Math.max(0, row - 40)) * ROW_EST - 40), animated: false })
+    }, 60)
+  }
+
+  const openToc = (): void => {
+    setTocOpen(true)
+    focusRow(curRow)
+  }
+
+  const toggleTocDesc = (): void => {
+    const nd = !tocDesc
+    setTocDesc(nd)
+    void setSetting(db, 'toc_desc', nd ? '1' : '0')
+    setTocStart(0)
+    setTocLimit(PAGE)
+    focusRow(nd ? toc.length - 1 - chIdx : chIdx)
+  }
+
+  const onTocScroll = (e: {
+    nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } }
+  }): void => {
+    /* 近底自动向下扩一页，免手动点 */
+    const { y } = e.nativeEvent.contentOffset
+    const max = e.nativeEvent.contentSize.height - e.nativeEvent.layoutMeasurement.height
+    if (max - y < 600 && tocStart + tocLimit < ordered.length) {
+      setTocLimit((l) => Math.min(ordered.length - tocStart, l + PAGE))
+    }
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -159,7 +216,7 @@ export default function Reader(): React.JSX.Element | null {
             {author} · {chIdx + 1}/{toc.length} · {pct}%
           </Text>
         </View>
-        <Pressable accessibilityLabel="目录" onPress={() => setTocOpen(true)} hitSlop={8}>
+        <Pressable accessibilityLabel="目录" onPress={openToc} hitSlop={8}>
           <Text style={{ color: t.ink2, fontSize: 13 }}>目录</Text>
         </Pressable>
         <Pressable accessibilityLabel="排版" onPress={() => setPop((v) => !v)} hitSlop={8}>
@@ -241,23 +298,29 @@ export default function Reader(): React.JSX.Element | null {
         </View>
       </ScrollView>
 
-      {/* 排版弹层 */}
+      {/* 排版弹层：点击面板外任意处关闭 */}
       {pop ? (
-        <View
-          style={{
-            position: 'absolute',
-            top: 48,
-            right: 12,
-            backgroundColor: t.surface,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: t.line,
-            padding: 14,
-            width: 230,
-            gap: 12,
-            elevation: 6
-          }}
-        >
+        <>
+          <Pressable
+            accessibilityLabel="关闭排版面板"
+            onPress={() => setPop(false)}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          />
+          <View
+            style={{
+              position: 'absolute',
+              top: 48,
+              right: 12,
+              backgroundColor: t.surface,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: t.line,
+              padding: 14,
+              width: 230,
+              gap: 12,
+              elevation: 6
+            }}
+          >
           <Text style={{ color: t.muted, fontSize: 11, letterSpacing: 1 }}>主题</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {(Object.keys(THEMES) as (keyof typeof THEMES)[]).map((k) => (
@@ -323,12 +386,18 @@ export default function Reader(): React.JSX.Element | null {
               ))}
             </View>
           </View>
-        </View>
+          </View>
+        </>
       ) : null}
 
-      {/* 目录抽屉 */}
+      {/* 目录抽屉：遮罩点击关闭；内部空档不外溢；分页渲染 + 倒序 */}
       <Modal visible={tocOpen} animationType="slide" transparent onRequestClose={() => setTocOpen(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,.35)' }} onPress={() => setTocOpen(false)}>
+        <View style={{ flex: 1 }}>
+          <Pressable
+            accessibilityLabel="关闭目录"
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,.35)' }}
+            onPress={() => setTocOpen(false)}
+          />
           <View
             style={{
               position: 'absolute',
@@ -341,11 +410,91 @@ export default function Reader(): React.JSX.Element | null {
               paddingHorizontal: 14
             }}
           >
-            <Text style={{ color: t.muted, fontSize: 11, letterSpacing: 2, marginBottom: 10 }}>
-              目录 · {toc.length} 章
-            </Text>
-            <ScrollView>
-              {toc.map((c) => (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 10
+              }}
+            >
+              <Text style={{ color: t.muted, fontSize: 11, letterSpacing: 2 }}>
+                目录 · {toc.length} 章
+                {tocStart + tocLimit < ordered.length || tocStart > 0
+                  ? ` · 显示 ${tocStart + 1}-${tocStart + rendered.length}`
+                  : ''}
+              </Text>
+              <Pressable
+                accessibilityLabel={tocDesc ? '切换为正序排列' : '切换为倒序排列'}
+                onPress={toggleTocDesc}
+                hitSlop={8}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  paddingHorizontal: 9,
+                  paddingVertical: 5,
+                  borderRadius: 999,
+                  backgroundColor: tocDesc ? t.sealSoft : 'transparent',
+                  borderWidth: 1,
+                  borderColor: tocDesc ? t.seal : t.line
+                }}
+              >
+                <Text style={{ color: tocDesc ? t.seal : t.ink2, fontSize: 11.5, fontWeight: '600' }}>
+                  {tocDesc ? '倒序' : '正序'}
+                </Text>
+                <Text style={{ color: tocDesc ? t.seal : t.ink2, fontSize: 11 }}>
+                  {tocDesc ? '↑' : '↓'}
+                </Text>
+              </Pressable>
+            </View>
+
+            {(curRow < tocStart || curRow >= tocStart + tocLimit) && toc.length > PAGE && (
+              <Pressable
+                accessibilityLabel="跳到正在读"
+                onPress={() => focusRow(curRow)}
+                style={{
+                  alignSelf: 'flex-start',
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  backgroundColor: t.sealSoft,
+                  marginBottom: 6
+                }}
+              >
+                <Text style={{ color: t.seal, fontSize: 12 }}>
+                  跳到正在读 · {(toc[chIdx]?.title ?? '').slice(0, 10)}
+                </Text>
+              </Pressable>
+            )}
+
+            <ScrollView ref={tocScrollRef} onScroll={onTocScroll} scrollEventThrottle={200}>
+              {tocStart > 0 && (
+                <Pressable
+                  accessibilityLabel="加载前面章节"
+                  onPress={() => {
+                    const before = tocStart
+                    setTocStart(Math.max(0, tocStart - PAGE))
+                    if (before - PAGE < 0) setTocLimit((l) => l + before)
+                    setTimeout(() => {
+                      tocScrollRef.current?.scrollTo({ y: 0, animated: false })
+                    }, 60)
+                  }}
+                  style={{
+                    alignItems: 'center',
+                    paddingVertical: 10,
+                    marginBottom: 6,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: t.line
+                  }}
+                >
+                  <Text style={{ color: t.ink2, fontSize: 12.5 }}>
+                    ↑ 加载前面（还有 {tocStart} 章）
+                  </Text>
+                </Pressable>
+              )}
+              {rendered.map((c) => (
                 <Pressable
                   key={c.idx}
                   onPress={() => {
@@ -366,9 +515,27 @@ export default function Reader(): React.JSX.Element | null {
                   </Text>
                 </Pressable>
               ))}
+              {tocStart + tocLimit < ordered.length && (
+                <Pressable
+                  accessibilityLabel="加载更多章节"
+                  onPress={() => setTocLimit((l) => Math.min(ordered.length - tocStart, l + PAGE))}
+                  style={{
+                    alignItems: 'center',
+                    paddingVertical: 12,
+                    marginVertical: 6,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: t.line
+                  }}
+                >
+                  <Text style={{ color: t.ink2, fontSize: 12.5 }}>
+                    加载更多（还剩 {ordered.length - tocStart - rendered.length} 章）
+                  </Text>
+                </Pressable>
+              )}
             </ScrollView>
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </View>
   )
