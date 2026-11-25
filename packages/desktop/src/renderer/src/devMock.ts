@@ -293,6 +293,32 @@ export function setupDevMock(): void {
   if (window.mozhi) return
   window.mozhi = {
     getShelf: () => Promise.resolve(shelf()),
+    searchStore: (siteId: string, keyword: string) => {
+      const kws = keyword.trim()
+      if (!kws) {
+        return Promise.resolve({ ok: false, error: '请输入书名或作者' })
+      }
+      const mk = (title: string, author: string, status: string, category: string, latest: string, n: number, chapters: number) => {
+        const tocUrl = `https://www.suduguu.com/${n}/`
+        mockStoreBooks.set(tocUrl, { title, author, chapters })
+        return { siteId, siteName: '速读谷', title, author, status, category, latestChapter: latest, tocUrl, coverUrl: '' }
+      }
+      return new Promise((resolve) => {
+        window.setTimeout(() => {
+          resolve({
+            ok: true,
+            results: kws.includes('剑')
+              ? [mk('借剑', '黑山老鬼', '连载中', '仙侠', '第两千零一章 一剑光寒', 55, 2001), mk('剑来', '烽火戏诸侯', '连载中', '仙侠', '第一千一百二十章 山巅', 77, 1120)]
+              : kws.includes('元始')
+                ? [mk('元始法则', '飞天鱼', '连载中', '玄幻', '第一千三百三十六章 南宫雨', 6, 1336)]
+                : kws.includes('万夜')
+                  ? []
+                  : [mk(`${kws}·示例甲`, '墨纸工坊', '已完结', '玄幻', '完本 · 共 1200 章', 101, 1200), mk(`${kws}·示例乙`, '一柄墨刀', '连载中', '都市', '第六百章 夜色', 102, 600)]
+          })
+        }, 700)
+      })
+    },
+    listStoreSites: () => Promise.resolve([{ id: 'suduguu', name: '速读谷', home: 'https://www.suduguu.com' }]),
     listReadHistory: () =>
       Promise.resolve(
         shelf()
@@ -457,6 +483,13 @@ export function setupDevMock(): void {
     createNovel: (tocUrl: string) => {
       if (!/^https?:\/\//i.test(tocUrl)) {
         return Promise.resolve({ ok: false, error: '地址格式不正确' })
+      }
+      const known = mockStoreBooks.get(tocUrl)
+      if (known) {
+        novelChapters = mockNovelSeed()
+        novelJobState = null
+        mockCrawl(0, novelChapters.length)
+        return Promise.resolve({ ok: true, bookId: 301, title: known.title, author: known.author, chapters: known.chapters })
       }
       novelChapters = mockNovelSeed()
       novelJobState = null
@@ -850,6 +883,7 @@ const mockPg = {
   session: null as { userId: string; name: string } | null
 }
 const mockPgUsers = new Map<string, string>()
+const mockStoreBooks = new Map<string, { title: string; author: string; chapters: number }>()
 const mockPgView = () => ({ ...mockPg, session: mockPg.session ? { ...mockPg.session } : null })
 /* 局域网设备同步 mock 状态 */
 const mockLan = {

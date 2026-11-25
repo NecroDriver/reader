@@ -38,6 +38,24 @@ export interface HistoryItem {
   lastReadAt: number
 }
 
+export interface StoreResultView {
+  siteId: string
+  siteName: string
+  title: string
+  author: string
+  status: string
+  category: string
+  latestChapter: string
+  tocUrl: string
+  coverUrl: string
+}
+
+export interface StoreSearchOutcome {
+  ok: boolean
+  results?: StoreResultView[]
+  error?: string
+}
+
 export interface CloudCfgView {
   enabled: boolean
   provider: 'webdav' | 's3'
@@ -68,6 +86,11 @@ const api = {
     }
   },
   /** 阅读历史（按最近阅读时间倒序） */
+  /** 网上书城：按站点规则搜索（首站=速读谷） */
+  searchStore: (siteId: string, keyword: string): Promise<StoreSearchOutcome> =>
+    ipcRenderer.invoke('store:search', siteId, keyword),
+  listStoreSites: (): Promise<{ id: string; name: string; home: string }[]> =>
+    ipcRenderer.invoke('store:sites'),
   listReadHistory: async (): Promise<HistoryItem[]> => {
     const rows = (await ipcRenderer.invoke('history:list')) as Record<string, unknown>[]
     return (rows || []).map((r) => ({

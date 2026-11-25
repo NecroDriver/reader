@@ -81,7 +81,19 @@ export interface Shelf {
   books: Book[]
   lastSyncAt: string
 }
-export type ViewName = 'shelf' | 'history' | 'sources' | 'settings'
+export type ViewName = 'shelf' | 'store' | 'history' | 'sources' | 'settings'
+
+export interface StoreResultItem {
+  siteId: string
+  siteName: string
+  title: string
+  author: string
+  status: string
+  category: string
+  latestChapter: string
+  tocUrl: string
+  coverUrl: string
+}
 
 export interface HistoryItem {
   id: number

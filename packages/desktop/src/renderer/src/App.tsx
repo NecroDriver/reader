@@ -5,7 +5,7 @@ import LoginScreen from './LoginScreen'
 import LanSyncPanel from './LanSyncPanel'
 import SliderSwitch from './SliderSwitch'
 import { setupDevMock } from './devMock'
-import type { Book, HistoryItem, ImportOutcome, NovelJobState, PullLogEntry, Shelf, ViewName } from './types'
+import type { Book, HistoryItem, ImportOutcome, NovelJobState, PullLogEntry, Shelf, StoreResultItem, ViewName } from './types'
 import pkg from '../../../package.json'
 
 const APP_VERSION: string = pkg.version
@@ -27,6 +27,9 @@ const NavIcon = {
   ),
   history: (
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="10" r="7" /><path d="M10 6.5V10l2.5 2" /></svg>
+  ),
+  store: (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 4.5h13M4 4.5v11a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 16 15.5v-11" /><path d="M8 8.5h4M8 11.5h4" /></svg>
   ),
   settings: (
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="10" cy="10" r="2.5" /><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4" /></svg>
@@ -457,6 +460,80 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
 
   const onlineCount = shelf?.books.filter((b) => b.format === 'NOVEL').length ?? 0
 
+  /* ---------- 网上书城（按站点规则搜索，首站=速读谷） ---------- */
+  const [storeKw, setStoreKw] = useState('')
+  const [storePhase, setStorePhase] = useState<'idle' | 'searching' | 'done' | 'fail'>('idle')
+  const [storeErr, setStoreErr] = useState('')
+  const [storeResults, setStoreResults] = useState<StoreResultItem[] | null>(null)
+  const [addingToc, setAddingToc] = useState<string | null>(null)
+  const [addedTocs, setAddedTocs] = useState<Set<string>>(new Set())
+  const STORE_SITE = '速读谷'
+
+  const doStoreSearch = useCallback(async () => {
+    if (!window.mozhi) return
+    const kw = storeKw.trim()
+    if (!kw) {
+      setStoreErr('请输入书名或作者')
+      return
+    }
+    setStoreErr('')
+    setStorePhase('searching')
+    try {
+      const r = await window.mozhi.searchStore('suduguu', kw)
+      if (r.ok) {
+        setStoreResults(r.results ?? [])
+        setStorePhase('done')
+      } else {
+        setStoreErr(r.error ?? '搜索失败')
+        setStorePhase('fail')
+      }
+    } catch (e) {
+      setStoreErr(e instanceof Error ? e.message : String(e))
+      setStorePhase('fail')
+    }
+  }, [storeKw])
+
+  const addFromStore = useCallback(
+    async (it: StoreResultItem) => {
+      if (!window.mozhi || addingToc) return
+      if (guestGate('添加小说')) return
+      setAddingToc(it.tocUrl)
+      try {
+        const r = await window.mozhi.createNovel(it.tocUrl)
+        if (r.ok && r.bookId !== undefined) {
+          setNovelJobs((j) => ({
+            ...j,
+            [r.bookId!]: { bookId: r.bookId!, status: 'running', done: 0, total: r.chapters ?? 0, currentTitle: '' }
+          }))
+          const d0 = new Date()
+          setPullLogs((ls) =>
+            [
+              {
+                at: `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`,
+                name: r.title ?? it.title,
+                added: 0,
+                ok: true,
+                kind: 'novel' as const,
+                bookId: r.bookId!,
+                running: true,
+                done: 0,
+                total: r.chapters ?? 0
+              },
+              ...ls
+            ].slice(0, 30)
+          )
+          pushToast(`已加入书架，开始抓取《${r.title ?? it.title}》· 共 ${r.chapters} 章`)
+          setAddedTocs((s) => new Set(s).add(it.tocUrl))
+        } else {
+          pushToast(r.error ?? '加入书架失败')
+        }
+      } finally {
+        setAddingToc(null)
+      }
+    },
+    [addingToc, pushToast, isGuest]
+  )
+
   return (
     <div className="app">
       <aside className={'sidebar' + (navCollapsed ? ' collapsed' : '')}>
@@ -483,6 +560,14 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
           >
             {NavIcon.shelf}
             {!navCollapsed && <span>书架</span>}
+          </button>
+          <button
+            className={'nav-item' + (view === 'store' ? ' active' : '')}
+            onClick={() => go('store')}
+            title={navCollapsed ? '书城' : undefined}
+          >
+            {NavIcon.store}
+            {!navCollapsed && <span>书城</span>}
           </button>
           <button
             className={'nav-item' + (view === 'history' ? ' active' : '')}
@@ -700,6 +785,80 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                 )
               )}
               {shelf !== null && shelf.books.length === 0 && <p className="empty">这里还没有内容</p>}
+            </div>
+          </section>
+        )}
+
+        {view === 'store' && (
+          <section className="view" aria-busy={storePhase === 'searching'}>
+            <header className="view-head">
+              <p className="eyebrow">STORE · 书城</p>
+              <h1>书城</h1>
+              <p className="stats">站点：{STORE_SITE} · 搜索结果可直接加入书架并抓取</p>
+            </header>
+            <div className="store-search" role="search">
+              <input
+                className="sf-input grow"
+                type="search"
+                value={storeKw}
+                placeholder="输入书名或作者，回车搜索"
+                aria-label="搜索书城"
+                onChange={(e) => setStoreKw(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && doStoreSearch()}
+              />
+              <button
+                className={'btn primary' + (storePhase === 'searching' ? ' loading' : '')}
+                onClick={doStoreSearch}
+                disabled={storePhase === 'searching'}
+              >
+                {storePhase === 'searching' ? '搜索中…' : '搜索'}
+              </button>
+            </div>
+            {storeErr && (
+              <p className="form-err" role="alert">
+                {storeErr}
+              </p>
+            )}
+            <div className="store-results">
+              {storePhase === 'searching' && <p className="store-status">正在{STORE_SITE}搜索「{storeKw.trim()}」…</p>}
+              {storePhase === 'done' && storeResults !== null && storeResults.length === 0 && (
+                <p className="empty">没有找到「{storeKw.trim()}」相关的书。换个关键词试试。</p>
+              )}
+              {storePhase === 'done' &&
+                storeResults?.map((it) => {
+                  const busy = addingToc === it.tocUrl
+                  const added = addedTocs.has(it.tocUrl)
+                  return (
+                    <div key={it.tocUrl} className="store-row">
+                      {it.coverUrl ? (
+                        <img className="store-cover" src={it.coverUrl} alt="" loading="lazy" />
+                      ) : (
+                        <span className={'store-cover cover-' + (it.title.length % 5)} aria-hidden="true" />
+                      )}
+                      <div className="store-info">
+                        <strong>{it.title}</strong>
+                        <em>
+                          {[it.author || '佚名', it.status, it.category].filter(Boolean).join(' · ')}
+                        </em>
+                        {it.latestChapter && <em className="store-latest">最新：{it.latestChapter}</em>}
+                      </div>
+                      <button
+                        className={'btn sm ' + (added ? 'ghost' : 'primary') + (busy ? ' loading' : '')}
+                        onClick={() => addFromStore(it)}
+                        disabled={busy || added}
+                        title={added ? '已在书架' : '加入书架并开始抓取'}
+                      >
+                        {busy ? '添加中…' : added ? '已在书架' : '加入书架'}
+                      </button>
+                    </div>
+                  )
+                })}
+              {storePhase === 'idle' && (
+                <p className="empty">
+                  输入书名或作者开始搜索。{STORE_SITE}的书会按站点规则解析目录与章节，
+                  加入书架后自动抓取全文。
+                </p>
+              )}
             </div>
           </section>
         )}
