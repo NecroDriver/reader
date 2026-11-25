@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, Notification, Tray, nativeImage, ipcMain } from 'electron'
 import { join } from 'node:path'
-import { getSetting, setSetting } from './db'
+import { getSetting, setSetting, logUpdateAllResult } from './db'
 import { updateAllNovels } from './novelJob'
 import { bossKeyState } from './boss'
 import { getActiveAccount, hasEnvOverride, isGuestActive } from './accounts'
@@ -50,9 +50,11 @@ export function createTray(getWin: () => BrowserWindow | null): void {
           const pad = (n: number): string => String(n).padStart(2, '0')
           const d = new Date()
           setSetting('last_sync_at', `${pad(d.getHours())}:${pad(d.getMinutes())}`)
+          logUpdateAllResult(r)
           const win = getWin()
           if (win && !win.isDestroyed()) {
             win.webContents.send('shelf:changed')
+            win.webContents.send('sync-log:changed')
             new Notification({
               title: '墨纸 · 更新完成',
               body:

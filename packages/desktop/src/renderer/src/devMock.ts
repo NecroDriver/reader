@@ -37,6 +37,7 @@ const pullLogs: {
   ok: boolean
   error?: string
   empty?: boolean
+  note?: string
   kind?: 'novel'
   bookId?: number
   running?: boolean
@@ -273,6 +274,15 @@ async function mockUpdateAllNovels(): Promise<{ checked: number; updatedBooks: n
       bookId: b.id
     })
   }
+  if (pullLogs.length > 30) pullLogs.length = 30
+  /* 与主进程 logUpdateAllResult 对齐：手动「更新全部」留汇总行 */
+  const note =
+    online.length === 0
+      ? '没有在线小说'
+      : added > 0
+        ? `${online.length} 本有更新 · 新增 ${added} 章`
+        : `已检查 ${online.length} 本 · 无新章节`
+  pullLogs.unshift({ at, name: '更新全部', added, ok: true, note })
   if (pullLogs.length > 30) pullLogs.length = 30
   syncLogListeners.forEach((cb) => cb())
   mockShelfListeners.forEach((cb) => cb())

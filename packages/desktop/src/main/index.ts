@@ -16,6 +16,7 @@ import {
   setSetting,
   getSetting,
   getPullLogs,
+  logUpdateAllResult,
   createNovelBook,
   getNovelSource,
   listChapterUrls,
@@ -340,7 +341,9 @@ void (async (): Promise<void> => {
     const pad = (n: number): string => String(n).padStart(2, '0')
     const d = new Date()
     setSetting('last_sync_at', `${pad(d.getHours())}:${pad(d.getMinutes())}`)
+    logUpdateAllResult(r)
     mainWindow?.webContents.send('shelf:changed')
+    mainWindow?.webContents.send('sync-log:changed')
     logEvent('novel', 'info', `更新全部：检查 ${r.checked} 本，${r.updatedBooks} 本有更新，共新增 ${r.addedChapters} 章`)
     return r
   })

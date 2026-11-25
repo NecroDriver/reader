@@ -620,6 +620,8 @@ export interface PullLogEntry {
   error?: string
   /** 手动拉取全部但没有任何启用源 */
   empty?: boolean
+  /** 自定义结果文案（「更新全部」汇总行等） */
+  note?: string
   /** 小说抓取任务（订阅页「同步记录」里展示实时进度） */
   kind?: 'novel'
   bookId?: number
@@ -652,6 +654,19 @@ export function getPullLogs(): PullLogEntry[] {
   } catch {
     return []
   }
+}
+
+/** 「更新全部」完成后的汇总行（手动触发可见；启动时自动更新不记录，防噪音） */
+export function logUpdateAllResult(r: { checked: number; updatedBooks: number; addedChapters: number }): void {
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  const d = new Date()
+  const note =
+    r.checked === 0
+      ? '没有在线小说'
+      : r.addedChapters > 0
+        ? `${r.updatedBooks} 本有更新 · 新增 ${r.addedChapters} 章`
+        : `已检查 ${r.checked} 本 · 无新章节`
+  addPullLog({ at: `${pad(d.getHours())}:${pad(d.getMinutes())}`, name: '更新全部', added: r.addedChapters, ok: true, note })
 }
 
 /** 小说抓取任务在同步记录里的唯一活条目（running/paused），没有则新建到最前 */

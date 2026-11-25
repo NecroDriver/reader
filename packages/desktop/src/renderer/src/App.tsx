@@ -730,9 +730,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                         <span className="pull-log-name">{l.name || '未命名源'}</span>
                         <span className={'pull-log-res' + (l.added > 0 ? ' added' : '')}>
                           {l.ok
-                            ? l.added > 0
-                              ? `新增 ${l.added} 篇`
-                              : '无新内容'
+                            ? l.note ?? (l.added > 0 ? `新增 ${l.added} 篇` : '无新内容')
                             : `失败：${l.error?.slice(0, 40) ?? '未知错误'}`}
                         </span>
                       </li>

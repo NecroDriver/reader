@@ -54,6 +54,8 @@ export interface PullLogEntry {
   error?: string
   /** 手动拉取全部但没有任何启用源 */
   empty?: boolean
+  /** 自定义结果文案（「更新全部」汇总行等） */
+  note?: string
   /** 小说抓取任务（订阅页「同步记录」里展示实时进度） */
   kind?: 'novel'
   bookId?: number
