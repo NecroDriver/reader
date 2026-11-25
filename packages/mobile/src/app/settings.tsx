@@ -34,6 +34,7 @@ export default function SettingsScreen(): React.JSX.Element {
   const [lanErr, setLanErr] = useState('')
   const [lanLastAt, setLanLastAt] = useState<number | null>(null)
   const [confirmUnpair, setConfirmUnpair] = useState(false)
+  const [chooseMode, setChooseMode] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -44,13 +45,14 @@ export default function SettingsScreen(): React.JSX.Element {
     })()
   }, [])
 
-  async function doSyncNow(): Promise<void> {
+  async function doSyncNow(full: boolean): Promise<void> {
+    setChooseMode(false)
     setLanErr('')
     setLanMsg('')
     setLanBusy(true)
     try {
-      const r: SyncSummary = await runSync(db)
-      setLanMsg(formatSyncResult(r))
+      const r: SyncSummary = await runSync(db, { full })
+      setLanMsg(full ? `覆盖式${formatSyncResult(r)}` : formatSyncResult(r))
       setLanLastAt(r.at)
       setOwner(await getDesktopOwner())
     } catch (e) {
@@ -137,7 +139,8 @@ export default function SettingsScreen(): React.JSX.Element {
       padding: 14,
       marginTop: 12
     },
-    cardAlert: { fontSize: 12.5, color: t.ink2, lineHeight: 18 },
+    cardTitle: { fontSize: 14, fontWeight: '700', color: t.ink, fontFamily: 'serif' },
+    cardAlert: { fontSize: 12.5, color: t.ink2, lineHeight: 18, marginTop: 4 },
     status: { fontSize: 12, color: t.muted, marginTop: 12, lineHeight: 17 }
   })
 
@@ -196,7 +199,7 @@ export default function SettingsScreen(): React.JSX.Element {
                 <Pressable
                   style={[s.btnPrimary, lanBusy ? s.btnDisabled : null]}
                   disabled={lanBusy}
-                  onPress={() => void doSyncNow()}
+                  onPress={() => setChooseMode(true)}
                   accessibilityLabel="立即同步"
                   accessibilityRole="button"
                 >
@@ -212,6 +215,37 @@ export default function SettingsScreen(): React.JSX.Element {
                   <Text style={s.btnTextGhost}>断开配对</Text>
                 </Pressable>
               </View>
+              {chooseMode && !lanBusy && (
+                <View style={s.card}>
+                  <Text style={s.cardTitle}>选择同步方式</Text>
+                  <Text style={s.cardAlert}>
+                    增量：只拉上次同步后的变更，流量小。覆盖式：丢弃游标，书架与全部章节按桌面端重建，适合修复数据错乱。
+                  </Text>
+                  <View style={s.btnRow}>
+                    <Pressable
+                      style={s.btnPrimary}
+                      onPress={() => void doSyncNow(false)}
+                      accessibilityLabel="增量同步"
+                      accessibilityRole="button"
+                    >
+                      <Text style={s.btnText}>增量同步</Text>
+                    </Pressable>
+                    <Pressable
+                      style={s.btnGhost}
+                      onPress={() => void doSyncNow(true)}
+                      accessibilityLabel="覆盖式同步"
+                      accessibilityRole="button"
+                    >
+                      <Text style={s.btnTextGhost}>覆盖式同步</Text>
+                    </Pressable>
+                  </View>
+                  <View style={s.btnRow}>
+                    <Pressable style={s.btnGhost} onPress={() => setChooseMode(false)}>
+                      <Text style={s.btnTextGhost}>取消</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
               {confirmUnpair && (
                 <View style={s.card}>
                   <Text style={s.cardAlert}>

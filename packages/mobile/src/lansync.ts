@@ -139,11 +139,14 @@ function authHeaders(token: string): Record<string, string> {
   return { authorization: `Bearer ${token}` }
 }
 
-/** 完整同步：info → 增量书架 → 变更书整集章节 → 回传进度。幂等，可随时中断重跑。 */
-export async function runSync(db: SQLiteDatabase): Promise<SyncSummary> {
+/** 完整同步：info → 增量书架 → 变更书整集章节 → 回传进度。幂等，可随时中断重跑。
+ *  opts.full=true：覆盖式——游标清零，书架与全部章节从桌面端全量重建（本地阅读进度保留并回传）。 */
+export async function runSync(db: SQLiteDatabase, opts?: { full?: boolean }): Promise<SyncSummary> {
   const pair = await loadLanPair()
   if (!pair) return { ok: false, error: '尚未配对桌面端', at: Date.now() }
   const cursors = await loadLanCursors()
+  const full = opts?.full === true
+  const since = full ? 0 : cursors.since
 
   const info = await api<{ serverNow: number; books: number; owner?: string }>(
     pair.addr,
@@ -153,11 +156,11 @@ export async function runSync(db: SQLiteDatabase): Promise<SyncSummary> {
   const offset = info.serverNow - Date.now() /* 服务端-本机时钟偏移，回传时校准 */
   if (info.owner) await setCfgValue('desktop_owner', info.owner).catch(() => {})
 
-  if (!cursors.firstSyncDone) await clearUnsyncedBooks(db)
+  if (full || !cursors.firstSyncDone) await clearUnsyncedBooks(db)
 
   const pull = await api<{ books: ServerBook[]; tombstones: { uuid: string }[]; serverNow: number }>(
     pair.addr,
-    `/sync/books?since=${cursors.since}`,
+    `/sync/books?since=${since}`,
     { headers: authHeaders(pair.token) }
   )
 
@@ -173,7 +176,7 @@ export async function runSync(db: SQLiteDatabase): Promise<SyncSummary> {
     else updatedBooks++
     const id = await upsertSyncBook(db, toSyncBookIn(b))
     const localRev = localId == null ? -1 : await localChaptersRev(db, id)
-    if (b.chaptersRev !== localRev) needChapters.push(b)
+    if (full || b.chaptersRev !== localRev) needChapters.push(b)
     else if (localId == null) needChapters.push(b) /* 保险：新书必拉章节 */
   }
 
