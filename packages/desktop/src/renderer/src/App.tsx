@@ -503,23 +503,25 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
         {view === 'shelf' && (
           <section className="view">
             <header className="view-head">
-              <p className="eyebrow">LIBRARY · 藏书</p>
-              <h1>书架</h1>
-              <p className="stats">
-                {shelf ? `${shelf.books.length} 本图书 · ${onlineCount} 本在线` : '正在载入…'}
-              </p>
-            </header>
-            <div className="shelf-toolbar">
-              <div className="head-actions shelf-actions">
-                <button className="btn ghost" onClick={pickImport}>
-                  导入图书
-                </button>
-                <button className={'btn primary' + (updatingAll ? ' loading' : '')} onClick={updateAll} disabled={updatingAll}>
-                  {RefreshIcon}
-                  {updatingAll ? '正在更新…' : '更新全部'}
-                </button>
+              <div className="view-head-row">
+                <div className="view-head-info">
+                  <p className="eyebrow">LIBRARY · 藏书</p>
+                  <h1>书架</h1>
+                  <p className="stats">
+                    {shelf ? `${shelf.books.length} 本图书 · ${onlineCount} 本在线` : '正在载入…'}
+                  </p>
+                </div>
+                <div className="head-actions shelf-actions">
+                  <button className="btn ghost" onClick={pickImport}>
+                    导入图书
+                  </button>
+                  <button className={'btn primary' + (updatingAll ? ' loading' : '')} onClick={updateAll} disabled={updatingAll}>
+                    {RefreshIcon}
+                    {updatingAll ? '正在更新…' : '更新全部'}
+                  </button>
+                </div>
               </div>
-            </div>
+            </header>
             <div className="shelf-grid">
               {shelf === null ? null : shelf.books.map((b) => (
                   <article

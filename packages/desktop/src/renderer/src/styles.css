@@ -14,7 +14,7 @@
 
   --t: 160ms;
   --ease: cubic-bezier(.25, 0, 0, 1);
-  --r: 2px;
+  --r: 2px; --r-full: 999px;
   --shadow-card: 0 1px 2px rgba(33,27,18,.06), 0 8px 24px -12px rgba(33,27,18,.18);
 }
 
@@ -148,6 +148,14 @@ button { font-family: inherit; color: inherit; }
 
 /* ---------- 视图头部 ---------- */
 .view-head { margin-bottom: var(--sp-5); }
+.view-head-row {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--sp-4);
+}
+.head-actions { display: flex; align-items: center; gap: var(--sp-2); flex: none; padding-bottom: 2px; }
+@media (max-width: 1120px) {
+  .view-head-row { flex-direction: column; align-items: flex-start; }
+}
 .eyebrow {
   margin: 0 0 var(--sp-1);
   font-family: var(--font-latin); font-size: 11px; font-weight: 600;
@@ -160,10 +168,6 @@ button { font-family: inherit; color: inherit; }
 .stats { margin: var(--sp-2) 0 0; color: var(--muted); font-size: 12.5px; letter-spacing: .04em; }
 
 /* ---------- 工具栏 ---------- */
-.shelf-toolbar {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: var(--sp-4);
-}
 .tabs { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--r); }
 .tab {
   padding: 6px 16px; border: 0; background: none; cursor: pointer;
@@ -175,19 +179,21 @@ button { font-family: inherit; color: inherit; }
 .tab:last-child { border-radius: 0 var(--r) var(--r) 0; }
 .tab.active { background: var(--ink); color: var(--bg); font-weight: 600; }
 
+/* iOS 风胶囊按钮（规范 §6：高 32 / padding 0 16 / 全圆角 / 组间距 8） */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  padding: 7px 18px; border-radius: var(--r); cursor: pointer;
-  font-size: 13px; letter-spacing: .05em;
-  border: 1px solid transparent;
-  transition: transform var(--t) var(--ease), opacity var(--t) var(--ease);
+  height: 32px; padding: 0 16px; border-radius: var(--r-full);
+  cursor: pointer; font-size: 13px; font-weight: 500; letter-spacing: .05em;
+  border: 1px solid transparent; white-space: nowrap;
+  transition: transform var(--t) var(--ease), opacity var(--t) var(--ease),
+    background var(--t) var(--ease), color var(--t) var(--ease);
 }
 .btn svg { flex: none; display: block; }
 .btn:active { transform: translateY(1px); }
-.btn.primary { background: var(--seal); color: var(--seal-fg); border-color: var(--seal-ink); }
+.btn.primary { background: var(--seal); color: var(--seal-fg); }
 .btn.primary:hover { opacity: .88; }
-.btn.ghost { background: none; border-color: var(--line-strong); color: var(--ink-2); }
-.btn.ghost:hover { color: var(--ink); border-color: var(--ink-2); }
+.btn.ghost { background: var(--surface-2); color: var(--ink-2); }
+.btn.ghost:hover { background: var(--line); color: var(--ink); }
 
 /* ---------- 书架网格 ---------- */
 .shelf-grid {
@@ -315,8 +321,8 @@ button { font-family: inherit; color: inherit; }
   border-radius: 5px; background: var(--surface-2); white-space: nowrap;
 }
 .boss-actions { display: flex; align-items: center; gap: 8px; }
-.btn.sm { padding: 5px 12px; font-size: 12px; font-weight: 500; }
-.btn.sm:hover { color: var(--ink); border-color: var(--ink-2); background: var(--surface-2); }
+.btn.sm { height: 26px; padding: 0 12px; font-size: 12px; }
+.btn.sm:hover { color: var(--ink); background: var(--surface-2); }
 .boss-rec {
   font-size: 12px; color: var(--seal); border: 1px dashed var(--seal);
   border-radius: 5px; padding: 4px 10px; animation: bossRecPulse 1.1s ease-in-out infinite;
@@ -462,15 +468,18 @@ button { font-family: inherit; color: inherit; }
 }
 .stepper button:hover { color: var(--ink); border-color: var(--ink-2); }
 .stepper b { font-family: var(--font-latin); font-size: 13px; min-width: 2em; text-align: center; }
-.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--r); overflow: hidden; }
+/* iOS 风分段控件：灰轨胶囊 + 选中浮起药丸 */
+.seg {
+  display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--surface-2); border: 0; border-radius: var(--r-full);
+}
 .seg button {
-  padding: 6px 14px; border: 0; background: none; cursor: pointer;
+  padding: 4px 13px; border: 0; border-radius: var(--r-full); background: none; cursor: pointer;
   font-size: 12.5px; color: var(--ink-2); font-family: var(--font-ui); font-weight: 500;
   transition: background var(--t) var(--ease), color var(--t) var(--ease);
 }
-.seg button + button { border-left: 1px solid var(--line-strong); }
-.seg button:not(.active):hover { background: var(--surface-2); color: var(--ink); }
-.seg button.active { background: var(--ink); color: var(--bg); font-weight: 600; }
+.seg button:not(.active):hover { color: var(--ink); }
+.seg button.active { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 
 /* 目录抽屉 */
 .drawer-mask {

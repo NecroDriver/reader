@@ -82,17 +82,21 @@ E-Ink / Paper × 中文书卷气：纸底、墨字、朱砂点缀；锐利、少
 
 ## 6. 控件度量（固定，不随 token 缩放）
 
+> 2026-11-25 起，按钮与分段控件采用 iOS 风胶囊规范（用户 m11469 指定）。
+
 | 控件 | 度量 |
 |---|---|
-| `.btn` | padding 7px 18px，高 ≈33px，图标与文字 gap 7px（inline-flex 居中） |
-| `.btn.sm` | padding 3px 9px |
+| `.btn` | 高 32px，padding 0 16px，全圆角胶囊（`--r-full`），图标与文字 gap 7px（inline-flex 居中），字重 500；主=seal 填充，次=surface-2 填充（无描边） |
+| `.btn.sm` | 高 26px，padding 0 12px |
+| `.seg` 分段控件 | 灰轨胶囊：surface-2 底 + padding 2px + gap 2px；选中=浮起药丸（surface 底 + 微阴影），无分隔线 |
 | `.tab` | padding 6px 16px |
-| `.sf-input` | padding 8px 10px，高 ≈33px（与 .btn 对齐） |
+| `.sf-input` | padding 8px 10px，高 ≈33px（与表单行对齐） |
 | 列表行（目录/书源行） | padding 7px 10px |
 | `.nav-item` | padding 9px 12px；图标与文字 gap 12px |
 | 徽标 | 18×18（收起态 15×15） |
 | 开关 `.slider-switch` | 40×22，knob 18px，位移 18px |
 | 图标钮（nav-toggle/⋯） | 30×30 |
+| 视图头行 `.view-head-row` | 标题块左、动作组右（flex space-between、align-items flex-end、动作组 gap sp-2）；≤1120px 纵排 |
 | 命中目标 | 任何可点元素 ≥30×30；触控语义场景 ≥44px |
 
 ## 7. 层级（z-index 阶梯）

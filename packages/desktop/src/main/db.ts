@@ -280,11 +280,14 @@ export function getShelf(): Shelf {
   }
 }
 
-/** 全部在线小说书的 id（origin_path 是 http(s) URL 的书） */
+/** 全部在线小说书的 id（有 novel_sources 记录的书；toc_url 在该表，origin_path 恒空） */
 export function listOnlineBookIds(): number[] {
   return (
     getDb()
-      .prepare("SELECT id FROM books WHERE origin_path LIKE 'http%' ORDER BY sort_at DESC")
+      .prepare(
+        `SELECT b.id FROM books b JOIN novel_sources ns ON ns.book_id = b.id
+          ORDER BY b.sort_at DESC`
+      )
       .all() as { id: number }[]
   ).map((r) => r.id)
 }
