@@ -67,6 +67,7 @@ export async function crawlNovel(bookId: number): Promise<NovelJobState> {
 
   try {
     const toc = await parseTocPages(src.tocUrl)
+    const tocUrls = new Set(toc.chapters.map((c) => c.url))
     const existing = new Map(dbApi.listChapterUrls(bookId).map((c) => [c.url, c]))
     const todo: { url: string; title: string }[] = []
     let startIdx = dbApi.countChapters(bookId)
@@ -93,7 +94,7 @@ export async function crawlNovel(bookId: number): Promise<NovelJobState> {
       for (let attempt = 0; attempt < 3 && !content; attempt++) {
         try {
           if (attempt > 0) await crawlDelay()
-          content = paragraphsToContent(dropTitlePara(ch.title, await fetchChapterParagraphs(ch.url)))
+          content = paragraphsToContent(dropTitlePara(ch.title, await fetchChapterParagraphs(ch.url, tocUrls)))
         } catch {
           /* 重试 */
         }

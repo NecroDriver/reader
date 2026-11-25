@@ -268,10 +268,86 @@ export async function parseTocPages(startUrl: string): Promise<TocParseResult> {
   return { bookTitle: first.bookTitle, author: first.author, chapters: orderChapters(chapters) }
 }
 
-/** 抓单章正文：Readability 提取 → 段落清洗（去广告/空行） */
-export async function fetchChapterParagraphs(url: string): Promise<string[]> {
-  const buf = await fetchBuffer(url)
-  const html = decodeText(buf)
+/* ---------- 章内分页（一页一章的站点会把长章拆成 -1/-2/-3… 多页） ---------- */
+
+/** 「下一页」链接文本（目录分页同款，但要求不混入「下一章」语义） */
+const PAGE_NEXT_TEXT_RE = /^(下一页|下页|下 一 页|next\s*»?|»+|⋙)$/i
+
+/** URL → { key（去掉页号的基名）, page }：末段去扩展名后剥 `-\d+`；`/6/4349488.html`→(key=…/4349488, page=1)；`-2.html`→(同 key, 2)；`?page=2` 同理 */
+function pageNumParts(rawUrl: string): { key: string; page: number } | null {
+  let u: URL
+  try {
+    u = new URL(rawUrl)
+  } catch {
+    return null
+  }
+  // 查询串形态：?page=2 / ?p=2
+  const q = u.searchParams.get('page') ?? u.searchParams.get('p')
+  if (q && /^\d+$/.test(q)) return { key: u.origin + u.pathname, page: Number(q) }
+  const seg = u.pathname.split('/').pop() ?? ''
+  if (!seg) return null
+  const noExt = seg.replace(/\.[a-z0-9]+$/i, '')
+  const dir = u.pathname.slice(0, u.pathname.length - seg.length)
+  const m = noExt.match(/^(.+?)[-_](\d+)$/)
+  if (m) return { key: u.origin + dir + m[1], page: Number(m[2]) }
+  return { key: u.origin + dir + noExt, page: 1 }
+}
+
+/**
+ * 章内下一页：文本=「下一页」且目标与当前 URL 同基名、页号恰好 +1。
+ * 若传入全书目录（chapterUrls），落在其内的链接一律视为「下一章」拒绝——
+ * 防「章节文件名本身是 base_N.html」型站点把相邻章误当分页吞并。
+ */
+export function parseNextChapterPageUrl(html: string, baseUrl: string, chapterUrls?: Set<string>): string | null {
+  const cur = pageNumParts(baseUrl)
+  if (!cur) return null
+  const { document } = parseHTML(html)
+  for (const a of Array.from(document.querySelectorAll('a[href]'))) {
+    const el = a as HTMLAnchorElement
+    const text = cleanText(el.textContent ?? '')
+    const rel = (el.getAttribute('rel') ?? '').toLowerCase()
+    if (!PAGE_NEXT_TEXT_RE.test(text) && rel !== 'next') continue
+    if (/[章节卷篇回]|尾页|末页/.test(text)) continue
+    const href = el.getAttribute('href') ?? ''
+    if (!href || href.startsWith('#') || href.startsWith('javascript:')) continue
+    let u: URL
+    try {
+      u = new URL(href, baseUrl)
+    } catch {
+      continue
+    }
+    if (u.href === baseUrl) continue
+    if (chapterUrls?.has(u.href)) continue
+    const nxt = pageNumParts(u.href)
+    if (!nxt || nxt.key !== cur.key || nxt.page !== cur.page + 1 || nxt.page > 999) continue
+    return u.href
+  }
+  return null
+}
+
+/** 抓单章正文（自动跟随章内分页，≤30 页；首页失败照旧抛错，后续页失败静默止步） */
+export async function fetchChapterParagraphs(url: string, chapterUrls?: Set<string>): Promise<string[]> {
+  const all: string[] = []
+  let cur: string | null = url
+  for (let page = 0; page < 30 && cur; page++) {
+    let html: string
+    try {
+      const buf = await fetchBuffer(cur)
+      html = decodeText(buf)
+    } catch (e) {
+      if (page === 0) throw e
+      break // 后续页抓失败：保留已抓部分，不把整章作废
+    }
+    const paras = extractParagraphs(html)
+    if (paras.length === 0 && page === 0) throw new Error('empty chapter')
+    all.push(...paras)
+    cur = parseNextChapterPageUrl(html, cur, chapterUrls)
+  }
+  return all
+}
+
+/** 单页 HTML → 正文段落（Readability → br/块级转行 → 段落清洗） */
+function extractParagraphs(html: string): string[] {
   const { document } = parseHTML(html)
   let inner = ''
   try {
@@ -288,12 +364,10 @@ export async function fetchChapterParagraphs(url: string): Promise<string[]> {
     .replace(/<\/(p|div|h[1-6]|li|blockquote|section|article)>/gi, '\n')
   const { document: d2 } = parseHTML(`<div>${inner}</div>`)
   const text = (d2.querySelector('div') as HTMLElement)?.textContent ?? ''
-  const paras = text
+  return text
     .split(/\r?\n+/)
     .map((p: string) => p.replace(/\s+/g, ' ').trim())
     .filter((p: string) => p.length > 0 && !AD_SITE_RE.test(p))
-  if (paras.length === 0) throw new Error('empty chapter')
-  return paras
 }
 
 export function paragraphsToContent(paras: string[]): string {
