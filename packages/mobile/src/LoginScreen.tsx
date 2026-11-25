@@ -280,7 +280,7 @@ export function LoginScreen({
         </View>
       )}
 
-      <Text style={s.foot}>账号为本机独立账号，不与桌面端互通；桌面端的书库，登录后在「设置 · 云同步」配置 WebDAV 下载快照即可获得。</Text>
+      <Text style={s.foot}>账号为本机独立账号，不与桌面端互通；桌面端的书库，登录后在「设置 · 设备同步」里与电脑配对即可获得。</Text>
 
       <Pressable
         style={s.guestLink}
@@ -291,7 +291,7 @@ export function LoginScreen({
       >
         <Text style={s.guestLinkText}>先逛逛 · 游客进入</Text>
       </Pressable>
-      <Text style={s.guestHint}>游客仅可浏览与阅读演示书库；云同步等功能需注册账号。</Text>
+      <Text style={s.guestHint}>游客仅可浏览与阅读演示书库；设备同步等功能需注册账号。</Text>
     </ScrollView>
   )
 }

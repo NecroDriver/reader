@@ -141,7 +141,8 @@ export async function loginAccount(id: string, pwd: string, remember: boolean): 
     const now = Date.now()
     await db.runAsync('UPDATE accounts SET last_used_at = ? WHERE id = ?', now, id)
     await cfgSet(db, 'active_id', id)
-    await cfgSet(db, `remember_${id}`, hasPwd(rec) && remember ? b64(pwd) : null)
+    const remVal = hasPwd(rec) && remember ? b64(pwd) : null
+    await cfgSet(db, `remember_${id}`, remVal)
     return { ok: true, account: { ...rec, lastUsedAt: now } }
   } finally {
     await db.closeAsync()
@@ -181,8 +182,9 @@ export async function createAccount(
 
 /** 启动会话：active 账号无口令或留有「记住我」凭据时自动进入 */
 export async function startupSession(): Promise<{ account: AccountRec; rememberedPwd: string | null } | null> {
-  const db = await accountsDb()
+  let db
   try {
+    db = await openDatabaseAsync('cloud-config.db')
     await db.execAsync('CREATE TABLE IF NOT EXISTS cfg (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
     const activeId = await cfgGet(db, 'active_id')
     if (!activeId) return null
@@ -196,12 +198,19 @@ export async function startupSession(): Promise<{ account: AccountRec; remembere
     const rem = await cfgGet(db, `remember_${activeId}`)
     if (!rem) return null
     try {
-      return { account: rec, rememberedPwd: unb64(rem) }
+      const pwd = unb64(rem)
+      return { account: rec, rememberedPwd: pwd }
     } catch {
       return null
     }
+  } catch {
+    return null
   } finally {
-    await db.closeAsync()
+    try {
+      await db?.closeAsync()
+    } catch {
+      /* ignore */
+    }
   }
 }
 

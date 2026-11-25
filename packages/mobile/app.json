@@ -2,7 +2,7 @@
   "expo": {
     "name": "墨纸",
     "slug": "mozhi-reader",
-    "version": "0.2.5",
+    "version": "0.2.6",
     "scheme": "mozhi",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.mozhi.reader",
-      "versionCode": 3,
+      "versionCode": 5,
       "adaptiveIcon": {
         "backgroundColor": "#F5EFE3",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -27,7 +27,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "允许墨纸使用相机扫描配对二维码"
+        }
+      ]
     ]
   }
 }

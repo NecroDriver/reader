@@ -4,6 +4,7 @@ import { router } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CameraView } from 'expo-camera'
+import Constants from 'expo-constants'
 import { usePrefs } from '../theme'
 import { THEMES, type ThemeDef } from '../types'
 import { useSession } from '../session'
@@ -17,6 +18,8 @@ import {
   type LanPair
 } from '../lansync'
 import { loadLanCursors } from '../storage'
+
+const APP_VERSION: string = Constants.expoConfig?.version ?? '0.0.0'
 
 function fmtDate(iso: string): string {
   const d = new Date(iso)
@@ -111,6 +114,7 @@ export default function SettingsScreen(): React.JSX.Element {
     back: { fontSize: 26, color: t.ink, paddingHorizontal: 4 },
     section: { marginTop: 26 },
     sectionTitle: { fontSize: 15, fontWeight: '700', color: t.ink, fontFamily: 'serif' },
+    aboutVersion: { fontSize: 13, color: t.ink, fontFamily: 'serif', marginTop: 2 },
     sectionSub: { fontSize: 12, color: t.muted, marginTop: 3, marginBottom: 12, lineHeight: 18 },
     label: { fontSize: 12.5, color: t.ink2, marginTop: 12, marginBottom: 5 },
     input: {
@@ -347,8 +351,9 @@ export default function SettingsScreen(): React.JSX.Element {
 
         <View style={[s.section, { marginBottom: 40 }]}>
           <Text style={s.sectionTitle}>关于</Text>
+          <Text style={s.aboutVersion}>墨纸移动端 v{APP_VERSION}</Text>
           <Text style={s.sectionSub}>
-            墨纸移动端 · 阅读书架。用「设备同步（局域网）」直连桌面端获取书库，离线全功能。
+            阅读书架 · 局域网设备同步。用「设备同步」直连桌面端获取书库，离线全功能。
           </Text>
         </View>
       </ScrollView>
