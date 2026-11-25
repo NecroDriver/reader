@@ -86,11 +86,17 @@ const api = {
     }
   },
   /** 阅读历史（按最近阅读时间倒序） */
-  /** 网上书城：按站点规则搜索（首站=速读谷） */
+  /** 网上书城：按站点规则搜索（速读谷直连；69书吧走浏览器辅助） */
   searchStore: (siteId: string, keyword: string): Promise<StoreSearchOutcome> =>
     ipcRenderer.invoke('store:search', siteId, keyword),
-  listStoreSites: (): Promise<{ id: string; name: string; home: string }[]> =>
+  listStoreSites: (): Promise<{ id: string; name: string; home: string; searchable: boolean }[]> =>
     ipcRenderer.invoke('store:sites'),
+  /** 浏览器辅助模式：粘贴 69书吧 书目链接 → 解析成结果卡 */
+  parseStoreUrl: (siteId: string, url: string): Promise<{ ok: boolean; result?: StoreResultView; error?: string }> =>
+    ipcRenderer.invoke('store:parseUrl', siteId, url),
+  /** 浏览器辅助模式：在系统浏览器打开站点搜索页 */
+  openStoreSearch: (siteId: string, keyword: string): Promise<boolean> =>
+    ipcRenderer.invoke('store:openSearch', siteId, keyword),
   listReadHistory: async (): Promise<HistoryItem[]> => {
     const rows = (await ipcRenderer.invoke('history:list')) as Record<string, unknown>[]
     return (rows || []).map((r) => ({

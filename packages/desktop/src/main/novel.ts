@@ -347,6 +347,7 @@ export async function fetchChapterParagraphs(url: string, chapterUrls?: Set<stri
 }
 
 /** 单页 HTML → 正文段落（Readability → br/块级转行 → 段落清洗） */
+const JUNK_LINE_RE = /^(?:\(?\s*本章完\s*\)?|（\s*本章完\s*）|最快更新.*|\d{4}-\d{2}-\d{2}\s*(?:作者|更新)[:：]?.*)$/
 function extractParagraphs(html: string): string[] {
   const { document } = parseHTML(html)
   let inner = ''
@@ -367,15 +368,16 @@ function extractParagraphs(html: string): string[] {
   return text
     .split(/\r?\n+/)
     .map((p: string) => p.replace(/\s+/g, ' ').trim())
-    .filter((p: string) => p.length > 0 && !AD_SITE_RE.test(p))
+    .filter((p: string) => p.length > 0 && !AD_SITE_RE.test(p) && !JUNK_LINE_RE.test(p))
 }
 
 export function paragraphsToContent(paras: string[]): string {
   return paras.join('\n')
 }
 
-/** 章题与正文首段重复判定：完全一致，或章题以首段结尾（站点常剥掉「第X章」前缀只重复正题） */
-const normPara = (s: string): string => s.replace(/\s+/g, '')
+/** 章题与正文首段重复判定：完全一致，或章题以首段结尾（站点常剥掉「第X章」前缀只重复正题）。
+ *  归一比较会剥省略号（69shuba 章题「…练习中（4k）」正文首段「…练习中……（4k）」）。 */
+const normPara = (s: string): string => s.replace(/[\s…‧·]/g, '')
 
 export function dropTitlePara(title: string, paras: string[]): string[] {
   if (paras.length === 0) return paras

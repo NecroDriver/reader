@@ -899,6 +899,34 @@ body.dropping .drop-overlay { display: flex; }
   max-width: var(--w-form, 860px); margin: 0 0 var(--sp-3);
 }
 .store-search .sf-input { flex: 1; }
+.store-sites { margin-bottom: var(--sp-3); max-width: var(--w-form, 860px); }
+.store-assist {
+  max-width: var(--w-form, 860px);
+  border: 1px solid var(--line);
+  border-radius: var(--r, 6px);
+  background: var(--surface-2);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.store-assist .assist-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin: 0;
+}
+.store-assist .assist-title strong {
+  color: var(--seal);
+  font-family: var(--font-latin);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+}
+.store-assist .assist-title .btn { margin-left: auto; }
+.store-assist .assist-hint { font-size: 11.5px; color: var(--muted); margin: 0; }
 .store-results { max-width: var(--w-form, 860px); }
 .store-status { margin: var(--sp-2) 0; font-size: 12.5px; color: var(--muted); }
 .store-row {

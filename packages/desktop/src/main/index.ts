@@ -56,7 +56,7 @@ import {
   setLanProgressSink
 } from './lanSync'
 import { parseTocPages, writeTxtFile } from './novel'
-import { listStoreSites, searchStore } from './store'
+import { listStoreSites, searchStore, parseStoreBookUrl, storeSearchOpenUrl } from './store'
 import {
   setNovelDb,
   setNovelProgressSink,
@@ -442,6 +442,18 @@ void (async (): Promise<void> => {
     }
   })
   ipcMain.handle('store:sites', () => listStoreSites())
+  ipcMain.handle('store:parseUrl', async (_e, siteId: string, url: string) => {
+    try {
+      return { ok: true as const, result: await parseStoreBookUrl(siteId, url) }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle('store:openSearch', (_e, siteId: string, keyword: string) => {
+    const url = storeSearchOpenUrl(siteId, keyword)
+    void shell.openExternal(url)
+    return true
+  })
 
   ipcMain.handle('novel:create', async (_e, tocUrl: string) => {
     try {

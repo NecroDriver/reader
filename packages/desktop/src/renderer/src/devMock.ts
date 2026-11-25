@@ -4,7 +4,7 @@
  * 让 Playwright 能在 http://localhost:5173/ 验证渲染管线。
  * 进度存内存（刷新即重置，测试中可通过 window.__mockProg 查看）。
  */
-import type { NovelJobState, OpenedBook, Shelf } from './types'
+import type { NovelJobState, OpenedBook, Shelf, StoreResultItem } from './types'
 
 /* preload LanPairView 的内联等价（renderer 不能直接 import preload） */
 interface LanPair {
@@ -318,7 +318,41 @@ export function setupDevMock(): void {
         }, 700)
       })
     },
-    listStoreSites: () => Promise.resolve([{ id: 'suduguu', name: '速读谷', home: 'https://www.suduguu.com' }]),
+    listStoreSites: () =>
+      Promise.resolve([
+        { id: 'suduguu', name: '速读谷', home: 'https://www.suduguu.com', searchable: true },
+        { id: '69shuba', name: '69书吧', home: 'https://www.69shuba.com', searchable: false }
+      ]),
+    parseStoreUrl: (siteId: string, url: string) =>
+      new Promise<{ ok: boolean; result?: StoreResultItem; error?: string }>((resolve) => {
+        setTimeout(() => {
+          const u = (url || '').trim()
+          const m = /^https?:\/\/(?:www\.)?69shuba\.com\/book\/(\d+)(?:\.html?|\/)?/i.exec(u)
+          if (siteId !== '69shuba' || !m) {
+            resolve({ ok: false, error: '不是 69书吧 的书目链接（形如 https://www.69shuba.com/book/90442/）' })
+            return
+          }
+          resolve({
+            ok: true,
+            result: {
+              siteId: '69shuba',
+              siteName: '69书吧',
+              title: '霍格沃茨的学习面板',
+              author: '不改初衷少年时',
+              status: '连载中',
+              category: '玄幻',
+              latestChapter: '第566章 …练习中（4k）',
+              tocUrl: `https://www.69shuba.com/book/${m[1]}/`,
+              coverUrl: ''
+            }
+          })
+          mockStoreBooks.set(`https://www.69shuba.com/book/${m[1]}/`, { title: '霍格沃茨的学习面板', author: '不改初衷少年时', chapters: 568 })
+        }, 600)
+      }),
+    openStoreSearch: (siteId: string) => {
+      console.log('[devMock] openStoreSearch site=', siteId)
+      return Promise.resolve(true)
+    },
     listReadHistory: () =>
       Promise.resolve(
         shelf()

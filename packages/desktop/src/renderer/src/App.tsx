@@ -423,14 +423,34 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
 
   const onlineCount = shelf?.books.filter((b) => b.format === 'NOVEL').length ?? 0
 
-  /* ---------- 网上书城（按站点规则搜索，首站=速读谷） ---------- */
+  /* ---------- 网上书城（按站点规则：速读谷直连搜索；69书吧浏览器辅助） ---------- */
+  const [storeSites, setStoreSites] = useState<{ id: string; name: string; home: string; searchable: boolean }[] | null>(null)
+  const [storeSiteId, setStoreSiteId] = useState('suduguu')
   const [storeKw, setStoreKw] = useState('')
   const [storePhase, setStorePhase] = useState<'idle' | 'searching' | 'done' | 'fail'>('idle')
   const [storeErr, setStoreErr] = useState('')
   const [storeResults, setStoreResults] = useState<StoreResultItem[] | null>(null)
   const [addingToc, setAddingToc] = useState<string | null>(null)
   const [addedTocs, setAddedTocs] = useState<Set<string>>(new Set())
-  const STORE_SITE = '速读谷'
+  const [pasteUrl, setPasteUrl] = useState('')
+  const [parsing, setParsing] = useState(false)
+  const activeSite = storeSites?.find((s) => s.id === storeSiteId) ?? null
+
+  useEffect(() => {
+    window.mozhi
+      ?.listStoreSites()
+      .then((sites) => setStoreSites(sites))
+      .catch(console.error)
+  }, [])
+
+  const switchSite = (id: string): void => {
+    if (id === storeSiteId) return
+    setStoreSiteId(id)
+    setStoreResults(null)
+    setStoreErr('')
+    setStorePhase('idle')
+    setPasteUrl('')
+  }
 
   const doStoreSearch = useCallback(async () => {
     if (!window.mozhi) return
@@ -442,7 +462,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
     setStoreErr('')
     setStorePhase('searching')
     try {
-      const r = await window.mozhi.searchStore('suduguu', kw)
+      const r = await window.mozhi.searchStore(storeSiteId, kw)
       if (r.ok) {
         setStoreResults(r.results ?? [])
         setStorePhase('done')
@@ -454,7 +474,35 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
       setStoreErr(e instanceof Error ? e.message : String(e))
       setStorePhase('fail')
     }
-  }, [storeKw])
+  }, [storeKw, storeSiteId])
+
+  /** 69书吧：粘贴书目链接 → 解析成结果卡 */
+  const doParsePaste = useCallback(async () => {
+    if (!window.mozhi || parsing) return
+    const url = pasteUrl.trim()
+    if (!url) {
+      setStoreErr('请粘贴 69书吧 的书目链接')
+      return
+    }
+    setStoreErr('')
+    setParsing(true)
+    setStoreResults(null)
+    try {
+      const r = await window.mozhi.parseStoreUrl(storeSiteId, url)
+      if (r.ok && r.result) {
+        setStoreResults([r.result])
+        setStorePhase('done')
+      } else {
+        setStoreErr(r.error ?? '链接解析失败')
+        setStorePhase('fail')
+      }
+    } catch (e) {
+      setStoreErr(e instanceof Error ? e.message : String(e))
+      setStorePhase('fail')
+    } finally {
+      setParsing(false)
+    }
+  }, [pasteUrl, parsing, storeSiteId])
 
   const addFromStore = useCallback(
     async (it: StoreResultItem) => {
@@ -753,37 +801,111 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
         )}
 
         {view === 'store' && (
-          <section className="view" aria-busy={storePhase === 'searching'}>
+          <section className="view" aria-busy={storePhase === 'searching' || parsing}>
             <header className="view-head">
               <p className="eyebrow">STORE · 书城</p>
               <h1>书城</h1>
-              <p className="stats">站点：{STORE_SITE} · 搜索结果可直接加入书架并抓取</p>
+              <p className="stats">
+                {activeSite
+                  ? activeSite.searchable
+                    ? `${activeSite.name} · 应用内直连搜索，结果可直接入架`
+                    : `${activeSite.name} · 站点搜索有人机验证，改用浏览器辅助`
+                  : '加载站点…'}
+              </p>
             </header>
-            <div className="store-search" role="search">
-              <input
-                className="sf-input grow"
-                type="search"
-                value={storeKw}
-                placeholder="输入书名或作者，回车搜索"
-                aria-label="搜索书城"
-                onChange={(e) => setStoreKw(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && doStoreSearch()}
-              />
-              <button
-                className={'btn primary' + (storePhase === 'searching' ? ' loading' : '')}
-                onClick={doStoreSearch}
-                disabled={storePhase === 'searching'}
-              >
-                {storePhase === 'searching' ? '搜索中…' : '搜索'}
-              </button>
-            </div>
+
+            {storeSites && storeSites.length > 1 && (
+              <div className="seg small store-sites" role="tablist" aria-label="书城站点">
+                {storeSites.map((s) => (
+                  <button
+                    key={s.id}
+                    className={s.id === storeSiteId ? 'active' : ''}
+                    role="tab"
+                    aria-selected={s.id === storeSiteId}
+                    onClick={() => switchSite(s.id)}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {activeSite === null || activeSite.searchable ? (
+              <div className="store-search" role="search">
+                <input
+                  className="sf-input grow"
+                  type="search"
+                  value={storeKw}
+                  placeholder="输入书名或作者，回车搜索"
+                  aria-label="搜索书城"
+                  onChange={(e) => setStoreKw(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && doStoreSearch()}
+                />
+                <button
+                  className={'btn primary' + (storePhase === 'searching' ? ' loading' : '')}
+                  onClick={doStoreSearch}
+                  disabled={storePhase === 'searching'}
+                >
+                  {storePhase === 'searching' ? '搜索中…' : '搜索'}
+                </button>
+              </div>
+            ) : (
+              <div className="store-assist">
+                <p className="assist-title">
+                  <strong>第一步</strong>
+                  在浏览器里搜索并打开你要的书
+                  <button
+                    className="btn sm ghost"
+                    onClick={() => {
+                      if (window.mozhi) void window.mozhi.openStoreSearch(storeSiteId, storeKw.trim())
+                    }}
+                    title="在系统浏览器打开 69书吧 搜索页"
+                  >
+                    打开搜索页 ↗
+                  </button>
+                </p>
+                <div className="store-search" role="search">
+                  <input
+                    className="sf-input grow2"
+                    value={storeKw}
+                    placeholder="书名或作者（用于浏览器搜索）"
+                    aria-label="浏览器搜索关键词"
+                    onChange={(e) => setStoreKw(e.target.value)}
+                  />
+                </div>
+                <p className="assist-title">
+                  <strong>第二步</strong>
+                  从浏览器地址栏复制书目链接，粘贴到下面
+                </p>
+                <div className="store-search" role="search">
+                  <input
+                    className="sf-input grow"
+                    value={pasteUrl}
+                    placeholder="https://www.69shuba.com/book/90442/"
+                    aria-label="粘贴书目链接"
+                    onChange={(e) => setPasteUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && doParsePaste()}
+                  />
+                  <button
+                    className={'btn primary' + (parsing ? ' loading' : '')}
+                    onClick={doParsePaste}
+                    disabled={parsing}
+                  >
+                    {parsing ? '解析中…' : '解析书目'}
+                  </button>
+                </div>
+                <p className="assist-hint">
+                  支持落地页（/book/90442.htm）与目录页（/book/90442/）两种链接；解析后与直连搜索一样一键入架。
+                </p>
+              </div>
+            )}
             {storeErr && (
               <p className="form-err" role="alert">
                 {storeErr}
               </p>
             )}
             <div className="store-results">
-              {storePhase === 'searching' && <p className="store-status">正在{STORE_SITE}搜索「{storeKw.trim()}」…</p>}
+              {storePhase === 'searching' && <p className="store-status">正在{activeSite?.name ?? '站点'}搜索「{storeKw.trim()}」…</p>}
               {storePhase === 'done' && storeResults !== null && storeResults.length === 0 && (
                 <p className="empty">没有找到「{storeKw.trim()}」相关的书。换个关键词试试。</p>
               )}
@@ -818,8 +940,9 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                 })}
               {storePhase === 'idle' && (
                 <p className="empty">
-                  输入书名或作者开始搜索。{STORE_SITE}的书会按站点规则解析目录与章节，
-                  加入书架后自动抓取全文。
+                  {activeSite?.searchable
+                    ? '输入书名或作者开始搜索。结果按站点规则解析目录与章节，加入书架后自动抓取全文。'
+                    : '粘贴书目链接解析，或在浏览器搜索后复制链接回来。解析成功即可一键入架抓取。'}
                 </p>
               )}
             </div>
