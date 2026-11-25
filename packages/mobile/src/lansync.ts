@@ -10,7 +10,7 @@ import {
   upsertSyncBook,
   type SyncBookIn
 } from './db'
-import { clearLanPair, loadLanCursors, loadLanPair, saveLanCursors, saveLanPair, type LanPair } from './storage'
+import { clearLanPair, loadLanCursors, loadLanPair, saveLanCursors, saveLanPair, setCfgValue, type LanPair } from './storage'
 
 /**
  * LAN 设备同步客户端。桌面端是唯一权威（书架/章节/删除），手机只回传阅读进度。
@@ -143,12 +143,13 @@ export async function runSync(db: SQLiteDatabase): Promise<SyncSummary> {
   if (!pair) return { ok: false, error: '尚未配对桌面端', at: Date.now() }
   const cursors = await loadLanCursors()
 
-  const info = await api<{ serverNow: number; books: number }>(
+  const info = await api<{ serverNow: number; books: number; owner?: string }>(
     pair.addr,
     '/sync/info',
     { headers: authHeaders(pair.token) }
   )
   const offset = info.serverNow - Date.now() /* 服务端-本机时钟偏移，回传时校准 */
+  if (info.owner) await setCfgValue('desktop_owner', info.owner).catch(() => {})
 
   if (!cursors.firstSyncDone) await clearUnsyncedBooks(db)
 

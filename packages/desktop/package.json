@@ -1,7 +1,7 @@
 {
   "name": "mozhi-reader",
   "productName": "墨纸 Mozhi Reader",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "墨纸 · 本地藏书与订阅阅读器",
   "main": "out/main/index.js",
   "author": "mozhi",

@@ -5,6 +5,7 @@ import { ScrollView, Pressable, Text, View } from 'react-native'
 import { usePrefs } from '../theme'
 import { listShelf } from '../db'
 import { getPair, runSync } from '../lansync'
+import { getDesktopOwner } from '../storage'
 import { COVER_PALETTE, THEMES, type BookRow, type ThemeDef } from '../types'
 
 /* 每次 App 会话只自动同步一次（静默；失败不打扰） */
@@ -16,6 +17,7 @@ export default function Shelf(): React.JSX.Element {
   const t: ThemeDef = THEMES[theme]
   const [books, setBooks] = useState<BookRow[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [owner, setOwner] = useState('')
   const syncingRef = useRef(false)
 
   const reload = useCallback((): (() => void) => {
@@ -24,6 +26,8 @@ export default function Shelf(): React.JSX.Element {
       try {
         const rows = await listShelf(db)
         if (alive) setBooks(rows)
+        const o = await getDesktopOwner()
+        if (alive) setOwner(o)
       } finally {
         if (alive) setLoaded(true)
       }
@@ -54,6 +58,7 @@ export default function Shelf(): React.JSX.Element {
           await runSync(db)
           const rows = await listShelf(db)
           setBooks(rows)
+          setOwner(await getDesktopOwner())
         } catch {
           // 静默失败：设置页有手动同步
         } finally {
@@ -74,7 +79,7 @@ export default function Shelf(): React.JSX.Element {
       <View style={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={{ color: t.seal, fontSize: 11, letterSpacing: 2 }}>
-            LIBRARY · 藏书
+            {owner ? `${owner} 的藏书` : 'LIBRARY · 藏书'}
           </Text>
           <Link href="/settings" asChild>
             <Pressable

@@ -186,3 +186,8 @@ export async function loadLanCursors(): Promise<LanCursors> {
 export async function saveLanCursors(c: LanCursors): Promise<void> {
   await setCfgValue(KEY_CURSORS, JSON.stringify(c))
 }
+
+/** 桌面端当前账号名（每次同步从 /sync/info 拿到后缓存） */
+export async function getDesktopOwner(): Promise<string> {
+  return (await getCfgValue('desktop_owner')) ?? ''
+}

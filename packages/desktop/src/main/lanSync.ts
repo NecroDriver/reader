@@ -11,6 +11,7 @@ import {
   type PhoneProgressEntry
 } from './db'
 import { logEvent } from './logger'
+import { getActiveAccount } from './accounts'
 
 /* ── 配置与设备注册表（settings 表 JSON） ── */
 
@@ -246,7 +247,8 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       ok: true,
       serverNow: Date.now(),
       books: books.length,
-      device: dev.name
+      device: dev.name,
+      owner: getActiveAccount()?.name ?? ''
     })
   }
 
