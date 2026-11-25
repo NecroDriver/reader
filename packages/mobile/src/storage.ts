@@ -135,6 +135,24 @@ export interface LanCursors {
 const KEY_PAIR = 'lan_pair'
 const KEY_CURSORS = 'lan_cursors'
 
+/**
+ * 旧版账号体系迁移：检测到 cfg 里有 active_id（账号系统时代写入）即清理，
+ * 并清空同步游标强制下次全量重同步——旧账号的每账号库（mozhi-<id>.db）废弃，
+ * 统一回到单一 mozhi.db（内容由桌面端权威重建，配对关系保留）。
+ */
+export async function migrateLegacyAccount(): Promise<void> {
+  try {
+    const active = await getCfgValue('active_id')
+    if (!active) return
+    const db = await cfgDb()
+    await db.runAsync('DELETE FROM cfg WHERE key = ?', 'active_id')
+    await db.runAsync('DELETE FROM cfg WHERE key LIKE ?', 'remember_%')
+    await db.runAsync('DELETE FROM cfg WHERE key = ?', KEY_CURSORS)
+  } catch {
+    // 迁移失败不阻塞启动
+  }
+}
+
 export async function loadLanPair(): Promise<LanPair | null> {
   try {
     const raw = await getCfgValue(KEY_PAIR)

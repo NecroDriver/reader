@@ -1,7 +1,51 @@
 import type { SQLiteDatabase } from 'expo-sqlite'
 import type { BookRow, TocRow } from './types'
 
-/** 设备快照的读写封装。只读除 books 阅读进度与 settings 显示偏好以外的表。 */
+/** 书库的唯一数据源。未配对时为空库，配对同步后由桌面端权威重建。 */
+
+/** 确保书库 schema 存在（空库首次打开时建表；IF NOT EXISTS 对老库无副作用） */
+export async function ensureSchema(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS books (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      author TEXT DEFAULT '',
+      format TEXT DEFAULT 'TXT',
+      cover_idx INTEGER DEFAULT 0,
+      progress REAL DEFAULT 0,
+      chapter_label TEXT DEFAULT '',
+      sort_at REAL,
+      created_at TEXT,
+      total_chapters INTEGER DEFAULT 0,
+      current_chapter INTEGER DEFAULT 0,
+      origin_path TEXT DEFAULT '',
+      cfi TEXT DEFAULT '',
+      cover_path TEXT DEFAULT '',
+      download_url TEXT DEFAULT '',
+      sync_uuid TEXT DEFAULT '',
+      updated_at REAL DEFAULT 0,
+      chapters_rev INTEGER DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS chapters (
+      book_id INTEGER,
+      idx INTEGER,
+      title TEXT,
+      content TEXT,
+      url TEXT DEFAULT '',
+      deleted INTEGER DEFAULT 0,
+      content_edited INTEGER DEFAULT 0,
+      dup INTEGER DEFAULT 0,
+      PRIMARY KEY (book_id, idx)
+    );
+    CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  `)
+  /* 老库（旧账号体系建的表）补 LAN 同步列 */
+  const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(books)')
+  const have = new Set(cols.map((c) => c.name))
+  if (!have.has('sync_uuid')) await db.execAsync("ALTER TABLE books ADD COLUMN sync_uuid TEXT DEFAULT ''")
+  if (!have.has('updated_at')) await db.execAsync('ALTER TABLE books ADD COLUMN updated_at REAL DEFAULT 0')
+  if (!have.has('chapters_rev')) await db.execAsync('ALTER TABLE books ADD COLUMN chapters_rev INTEGER DEFAULT 0')
+}
 
 export async function listShelf(db: SQLiteDatabase): Promise<BookRow[]> {
   return db.getAllAsync<BookRow>(

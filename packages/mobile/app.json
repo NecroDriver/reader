@@ -2,7 +2,7 @@
   "expo": {
     "name": "墨纸",
     "slug": "mozhi-reader",
-    "version": "0.2.6",
+    "version": "0.2.7",
     "scheme": "mozhi",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.mozhi.reader",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#F5EFE3",
         "foregroundImage": "./assets/android-icon-foreground.png",

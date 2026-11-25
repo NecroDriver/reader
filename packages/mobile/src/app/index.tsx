@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useFocusEffect } from 'expo-router'
+import { Link, router, useFocusEffect } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
 import { ScrollView, Pressable, Text, View } from 'react-native'
 import { usePrefs } from '../theme'
@@ -36,24 +36,34 @@ export default function Shelf(): React.JSX.Element {
   /* 每次回到书架重查：设置页配对/同步后的新库、阅读器写回的进度都立即反映 */
   useFocusEffect(reload)
 
-  /* 打开 App 自动与桌面端同步一次（已配对时） */
+  /* 未配对（含从未同步过）→ 默认进入配对页 */
   useEffect(() => {
-    if (autoSynced || syncingRef.current) return
-    autoSynced = true
+    let alive = true
     void (async () => {
-      try {
-        if (await getPair()) {
+      const pair = await getPair()
+      if (!alive) return
+      if (!pair) {
+        router.replace('/pair')
+        return
+      }
+      if (autoSynced || syncingRef.current) return
+      autoSynced = true
+      void (async () => {
+        try {
           syncingRef.current = true
           await runSync(db)
           const rows = await listShelf(db)
           setBooks(rows)
+        } catch {
+          // 静默失败：设置页有手动同步
+        } finally {
+          syncingRef.current = false
         }
-      } catch {
-        // 静默失败：设置页有手动同步
-      } finally {
-        syncingRef.current = false
-      }
+      })()
     })()
+    return () => {
+      alive = false
+    }
   }, [db])
 
   const rows: BookRow[][] = []
@@ -68,7 +78,7 @@ export default function Shelf(): React.JSX.Element {
           </Text>
           <Link href="/settings" asChild>
             <Pressable
-              accessibilityLabel="设置与云同步"
+              accessibilityLabel="设置"
               accessibilityRole="button"
               hitSlop={10}
               style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, paddingVertical: 4, paddingHorizontal: 2 }]}
@@ -95,7 +105,7 @@ export default function Shelf(): React.JSX.Element {
       ))}
       {loaded && books.length === 0 ? (
         <Text style={{ color: t.muted, textAlign: 'center', marginTop: 64, fontSize: 13 }}>
-          快照里还没有书。在「设置 · 设备同步」与桌面端配对后，书库会同步到此处。
+          还没有书。与桌面端配对后，书库会同步到此处。
         </Text>
       ) : null}
     </ScrollView>
