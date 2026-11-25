@@ -71,7 +71,7 @@ export default function Shelf(): React.JSX.Element {
 
   return (
     <ScrollView style={{ backgroundColor: t.bg, flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
-      <View style={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 6 }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={{ color: t.seal, fontSize: 11, letterSpacing: 2 }}>
             LIBRARY · 藏书
@@ -87,19 +87,19 @@ export default function Shelf(): React.JSX.Element {
             </Pressable>
           </Link>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 4 }}>
-          <Text style={{ color: t.ink, fontSize: 26, fontWeight: '600' }}>书架</Text>
-          <Text style={{ color: t.muted, fontSize: 12, marginLeft: 10 }}>
-            {loaded
-              ? `${books.length} 本图书 · ${books.filter((b) => b.format === 'NOVEL').length} 本在线`
-              : '读取中…'}
-          </Text>
-        </View>
+        <Text style={{ color: t.ink, fontSize: 26, fontWeight: '600', marginTop: 4, fontFamily: 'serif' }}>书架</Text>
+        <Text style={{ color: t.muted, fontSize: 12, marginTop: 2 }}>
+          {loaded
+            ? `${books.length} 本图书 · ${books.filter((b) => b.format === 'NOVEL').length} 本在线`
+            : '读取中…'}
+        </Text>
       </View>
       {rows.map((row, ri) => (
-        <View key={ri} style={{ flexDirection: 'row', paddingHorizontal: 12 }}>
+        <View key={ri} style={{ flexDirection: 'row', paddingHorizontal: 15 }}>
           {row.map((item) => (
-            <BookCard key={item.id} item={item} t={t} />
+            <View key={item.id} style={{ flex: 1, flexBasis: 0, paddingHorizontal: 5, paddingBottom: 14 }}>
+              <BookCard item={item} t={t} />
+            </View>
           ))}
         </View>
       ))}
@@ -109,6 +109,35 @@ export default function Shelf(): React.JSX.Element {
         </Text>
       ) : null}
     </ScrollView>
+  )
+}
+
+/** 封面上的格式角标：在线小说用中文，本地格式用小拉丁字 */
+function FormatChip({ format }: { format: string }): React.JSX.Element {
+  const label = format === 'NOVEL' ? '在线' : format
+  return (
+    <View style={{ backgroundColor: 'rgba(20,16,12,.28)', borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2, alignSelf: 'flex-start' }}>
+      <Text style={{ color: '#F3EDE0', fontSize: 9, letterSpacing: 1 }}>{label}</Text>
+    </View>
+  )
+}
+
+/** 线装书式竖排书名：CJK 逐字竖叠，贴书脊（右缘） */
+function VerticalTitle({ title, max = 6 }: { title: string; max?: number }): React.JSX.Element {
+  const chars = Array.from(title.trim())
+  const shown = chars.slice(0, max)
+  if (chars.length > max) shown.push('…')
+  return (
+    <View style={{ alignItems: 'center', flexShrink: 0 }}>
+      {shown.map((c, i) => (
+        <Text
+          key={i}
+          style={{ color: '#F3EDE0', fontSize: 16, lineHeight: 21, fontWeight: '600', fontFamily: 'serif' }}
+        >
+          {c}
+        </Text>
+      ))}
+    </View>
   )
 }
 
@@ -124,23 +153,26 @@ function BookCard({ item, t }: { item: BookRow; t: ThemeDef }): React.JSX.Elemen
     <Link href={`/book/${item.id}`} asChild>
       <Pressable
         accessibilityLabel={`打开《${item.title}》`}
-        style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1, flex: 1, margin: 8 }]}
+        style={({ pressed }) => [{ opacity: pressed ? 0.78 : 1 }]}
       >
         <View
           style={{
             aspectRatio: 5 / 7,
+            width: '100%',
             backgroundColor: bg,
-            borderRadius: 4,
-            padding: 10,
-            justifyContent: 'space-between'
+            borderRadius: 6,
+            padding: 9,
+            shadowColor: '#221D17',
+            shadowOpacity: 0.22,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: 4
           }}
         >
-          <Text
-            numberOfLines={3}
-            style={{ color: '#F3EDE0', fontSize: 16, lineHeight: 24, fontWeight: '600' }}
-          >
-            {item.title}
-          </Text>
+          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <FormatChip format={item.format} />
+            <VerticalTitle title={item.title} />
+          </View>
           <View>
             {item.progress > 0 ? (
               <View
@@ -161,12 +193,12 @@ function BookCard({ item, t }: { item: BookRow; t: ThemeDef }): React.JSX.Elemen
                 />
               </View>
             ) : null}
-            <Text style={{ color: 'rgba(243,237,224,.8)', fontSize: 11 }}>
-              {item.author || '佚名'} · {item.format}
+            <Text style={{ color: 'rgba(243,237,224,.85)', fontSize: 10.5, letterSpacing: 0.5 }} numberOfLines={1}>
+              {item.author || '佚名'}
             </Text>
           </View>
         </View>
-        <Text numberOfLines={1} style={{ color: t.ink2, fontSize: 12, marginTop: 6, paddingLeft: 2 }}>
+        <Text numberOfLines={1} style={{ color: t.ink2, fontSize: 11.5, marginTop: 6, paddingLeft: 1 }}>
           {meta}
         </Text>
       </Pressable>
