@@ -236,7 +236,10 @@ export async function ensureSchema(db: SQLiteDatabase): Promise<void> {
       origin_path TEXT DEFAULT '',
       cfi TEXT DEFAULT '',
       cover_path TEXT DEFAULT '',
-      download_url TEXT DEFAULT ''
+      download_url TEXT DEFAULT '',
+      sync_uuid TEXT DEFAULT '',
+      updated_at REAL DEFAULT 0,
+      chapters_rev INTEGER DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS chapters (
       book_id INTEGER,
@@ -251,4 +254,10 @@ export async function ensureSchema(db: SQLiteDatabase): Promise<void> {
     );
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `)
+  /* 老库（旧快照恢复/旧版建的表）补 LAN 同步列 */
+  const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(books)')
+  const have = new Set(cols.map((c) => c.name))
+  if (!have.has('sync_uuid')) await db.execAsync("ALTER TABLE books ADD COLUMN sync_uuid TEXT DEFAULT ''")
+  if (!have.has('updated_at')) await db.execAsync('ALTER TABLE books ADD COLUMN updated_at REAL DEFAULT 0')
+  if (!have.has('chapters_rev')) await db.execAsync('ALTER TABLE books ADD COLUMN chapters_rev INTEGER DEFAULT 0')
 }

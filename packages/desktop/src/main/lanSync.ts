@@ -133,7 +133,12 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': buf.length,
-    'Cache-Control': 'no-store'
+    'Cache-Control': 'no-store',
+    /* 移动端 web（Expo web）是合法客户端：放开 CORS 供浏览器直连 */
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '600'
   })
   res.end(buf)
 }
@@ -188,6 +193,11 @@ export function setLanProgressSink(fn: OnProgress | null): void {
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url || '/', 'http://lan')
   const path = url.pathname.replace(/\/+$/, '') || '/'
+
+  /* CORS 预检（移动端 web fetch 跨源） */
+  if (req.method === 'OPTIONS') {
+    return json(res, 200, {})
+  }
 
   if (path === '/ping') {
     return json(res, 200, { app: 'mozhi', v: 1 })

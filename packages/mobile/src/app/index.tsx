@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
 import { ScrollView, Pressable, Text, View } from 'react-native'
 import { usePrefs } from '../theme'
 import { listShelf } from '../db'
+import { getPair, runSync } from '../lansync'
 import { COVER_PALETTE, THEMES, type BookRow, type ThemeDef } from '../types'
+
+/* 每次 App 会话只自动同步一次（静默；失败不打扰） */
+let autoSynced = false
 
 export default function Shelf(): React.JSX.Element {
   const db = useSQLiteContext()
@@ -12,6 +16,7 @@ export default function Shelf(): React.JSX.Element {
   const t = THEMES[theme]
   const [books, setBooks] = useState<BookRow[]>([])
   const [loaded, setLoaded] = useState(false)
+  const syncingRef = useRef(false)
 
   /* 每次回到书架重查，把阅读器写回的进度立即反映出来 */
   useEffect(() => {
@@ -27,6 +32,26 @@ export default function Shelf(): React.JSX.Element {
     return () => {
       alive = false
     }
+  }, [db])
+
+  /* 打开 App 自动与桌面端同步一次（已配对时） */
+  useEffect(() => {
+    if (autoSynced || syncingRef.current) return
+    autoSynced = true
+    void (async () => {
+      try {
+        if (await getPair()) {
+          syncingRef.current = true
+          await runSync(db)
+          const rows = await listShelf(db)
+          setBooks(rows)
+        }
+      } catch {
+        // 静默失败：设置页有手动同步
+      } finally {
+        syncingRef.current = false
+      }
+    })()
   }, [db])
 
   const rows: BookRow[][] = []

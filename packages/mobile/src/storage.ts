@@ -115,3 +115,56 @@ export function basicAuth(cfg: CloudConfig): string {
   if (typeof g.btoa === 'function') return `Basic ${g.btoa(`${cfg.username}:${cfg.password}`)}`
   throw new Error('当前环境缺少 base64 编码支持')
 }
+
+/* ---------- LAN 设备同步的配对与游标 ---------- */
+
+export interface LanPair {
+  addr: string /* host:port */
+  token: string
+  deviceName: string
+  pairedAt: number
+}
+
+export interface LanCursors {
+  since: number /* 上次拉取游标（服务端时钟） */
+  lastPushAt: number /* 上次进度回传水位（手机时钟） */
+  firstSyncDone: boolean
+  lastSyncAt?: number
+}
+
+const KEY_PAIR = 'lan_pair'
+const KEY_CURSORS = 'lan_cursors'
+
+export async function loadLanPair(): Promise<LanPair | null> {
+  try {
+    const raw = await getCfgValue(KEY_PAIR)
+    if (raw) return JSON.parse(raw) as LanPair
+  } catch {
+    // ignore
+  }
+  return null
+}
+
+export async function saveLanPair(p: LanPair): Promise<void> {
+  await setCfgValue(KEY_PAIR, JSON.stringify(p))
+}
+
+export async function clearLanPair(): Promise<void> {
+  const db = await cfgDb()
+  await db.runAsync('DELETE FROM cfg WHERE key = ?', KEY_PAIR)
+  await db.runAsync('DELETE FROM cfg WHERE key = ?', KEY_CURSORS)
+}
+
+export async function loadLanCursors(): Promise<LanCursors> {
+  try {
+    const raw = await getCfgValue(KEY_CURSORS)
+    if (raw) return { since: 0, lastPushAt: 0, firstSyncDone: false, ...(JSON.parse(raw) as Partial<LanCursors>) }
+  } catch {
+    // ignore
+  }
+  return { since: 0, lastPushAt: 0, firstSyncDone: false }
+}
+
+export async function saveLanCursors(c: LanCursors): Promise<void> {
+  await setCfgValue(KEY_CURSORS, JSON.stringify(c))
+}
