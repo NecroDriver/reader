@@ -112,3 +112,31 @@ E-Ink / Paper × 中文书卷气：纸底、墨字、朱砂点缀；锐利、少
 - [ ] 新容器宽度 ≤ §2 上限？新断点真的必要吗？
 - [ ] 图标用 SVG 内联（Phosphor 风格线条），无 emoji？
 - [ ] 键盘可达：focus-visible 可见、Enter 触发、Esc 关闭浮层？
+
+## 9. 移动端（packages/mobile）——iOS 式布局规范
+
+> 2026-11-25 用户指定「参照 iOS 最新版设计」重构移动端整体布局。核心=Apple Native Experience 骨架 × 墨纸排印皮肤。
+
+### 9.1 导航结构
+
+- **底部标签栏**（`src/app/(tabs)/_layout.tsx` 自绘 TabBar）：
+  - 三项：书架 / 历史 / 设置；图标=单字印章（书/历/设，serif 20px），标签 10px letterSpacing 1；
+  - 激活态=seal 色（图标+标签同色），非激活=muted、opacity .82；
+  - bar 高度 ≥48 + 底部安全区 padding（`useSafeAreaInsets().bottom`）；背景 `t.surface`、顶部 1px 发丝线 `t.line`；
+  - `accessibilityRole="tab"` + `aria-label` + `accessibilityState.selected`（注意：RNW 不落 aria-selected 到 DOM 属性，验证选中态看颜色）；
+  - 阅读器（`/book/[id]`）与配对页（`/pair`）在 Tabs 之外推入——整屏、标签栏自动隐藏。
+- **屏头**：eyebrow（拉丁 11px seal）→ 大标题（serif 26/600）→ stats（12px muted）；`paddingHorizontal 20, paddingTop 18`。
+  屏内不再放返回箭头/顶部链接——导航职责全部归标签栏（深链返回除外）。
+- 滚动内容 `paddingBottom 32`（Attached bar 模式，内容不经 bar 底下穿过）。
+
+### 9.2 控件与触控
+
+- 触控目标 ≥48×48（bar 项、按钮、行）；列表行 paddingVertical ≥10；
+- 胶囊按钮/确认卡/分组列表沿用桌面 §6 的 iOS 胶囊度量（btn 高 32、`border-radius 999`）；
+- 单字印章图标（书/历/设/墨）是墨纸的既定图标语言，不算 emoji 违例；新增图标优先 SVG 线条，确无必要时才用单字印。
+
+### 9.3 禁止
+
+- 顶部散落文字链接当导航；屏内返回箭头（Tabs 场景）；
+- 标签栏覆盖在滚动内容之上而不给内容留底部 padding；
+- 图标用 emoji；选中态只靠透明度不用颜色。

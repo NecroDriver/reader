@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { router } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import Constants from 'expo-constants'
-import { usePrefs } from '../theme'
-import { THEMES, type ThemeDef } from '../types'
-import { formatSyncResult, getPair, runSync, unpair, type LanPair, type SyncSummary } from '../lansync'
-import { getDesktopOwner, loadLanCursors } from '../storage'
+import { usePrefs } from '../../theme'
+import { THEMES, type ThemeDef } from '../../types'
+import { formatSyncResult, getPair, runSync, unpair, type LanPair, type SyncSummary } from '../../lansync'
+import { getDesktopOwner, loadLanCursors } from '../../storage'
 
 const APP_VERSION: string = Constants.expoConfig?.version ?? '0.0.0'
 
@@ -71,19 +70,10 @@ export default function SettingsScreen(): React.JSX.Element {
   const s = StyleSheet.create({
     wrap: { flex: 1, backgroundColor: t.bg },
     scroll: { flex: 1 },
-    scrollContent: { padding: 20, paddingTop: 14, maxWidth: 640, width: '100%', alignSelf: 'center' },
-    head: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      paddingHorizontal: 20,
-      paddingTop: 8,
-      paddingBottom: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: t.line
-    },
-    headTitle: { fontSize: 20, fontWeight: '700', color: t.ink, fontFamily: 'serif' },
-    back: { fontSize: 26, color: t.ink, paddingHorizontal: 4 },
+    scrollContent: { padding: 20, paddingTop: 18, maxWidth: 640, width: '100%', alignSelf: 'center' },
+    eyebrow: { color: t.seal, fontSize: 11, letterSpacing: 2 },
+    title: { color: t.ink, fontSize: 26, fontWeight: '600', marginTop: 4, fontFamily: 'serif' },
+    stats: { color: t.muted, fontSize: 12, marginTop: 2, marginBottom: 6 },
     section: { marginTop: 22 },
     sectionTitle: { fontSize: 15, fontWeight: '700', color: t.ink, fontFamily: 'serif' },
     aboutVersion: { fontSize: 13, color: t.ink, fontFamily: 'serif', marginTop: 2 },
@@ -145,17 +135,11 @@ export default function SettingsScreen(): React.JSX.Element {
   })
 
   return (
-    <SafeAreaView style={s.wrap} edges={['top', 'bottom']}>
-      <View style={s.head}>
-        <Pressable onPress={() => router.back()} accessibilityLabel="返回">
-          <Text style={s.back}>←</Text>
-        </Pressable>
-        <View>
-          <Text style={s.headTitle}>设置</Text>
-        </View>
-      </View>
-      <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
-        <View style={s.section}>
+    <ScrollView style={s.wrap} contentContainerStyle={s.scrollContent}>
+      <Text style={s.eyebrow}>SETTINGS · 配置</Text>
+      <Text style={s.title}>设置</Text>
+      <Text style={s.stats}>书库由桌面端权威维护 · 本机阅读偏好即时生效</Text>
+      <View style={s.section}>
           <Text style={s.sectionTitle}>书房</Text>
           {lanPair === null ? (
             <View style={[s.hero, { borderColor: t.line, borderStyle: 'dashed' }]}>
@@ -275,6 +259,5 @@ export default function SettingsScreen(): React.JSX.Element {
           </Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
   )
 }

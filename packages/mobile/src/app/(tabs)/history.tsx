@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Link, router, useFocusEffect } from 'expo-router'
+import { Link, useFocusEffect } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
-import { usePrefs } from '../theme'
-import { COVER_PALETTE, THEMES, type ThemeDef } from '../types'
-import { listHistory, type HistoryRow } from '../db'
+import { usePrefs } from '../../theme'
+import { COVER_PALETTE, THEMES, type ThemeDef } from '../../types'
+import { listHistory, type HistoryRow } from '../../db'
 
 function fmtReadTime(ts: number): string {
   const d = new Date(ts)
@@ -70,10 +70,7 @@ export default function HistoryScreen(): React.JSX.Element {
     wrap: { flex: 1, backgroundColor: t.bg },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 32 },
-    headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     eyebrow: { color: t.seal, fontSize: 11, letterSpacing: 2 },
-    backBtn: { paddingVertical: 4, paddingHorizontal: 2 },
-    backTxt: { color: t.ink2, fontSize: 14, letterSpacing: 1 },
     title: { color: t.ink, fontSize: 26, fontWeight: '600', marginTop: 4, fontFamily: 'serif' },
     stats: { color: t.muted, fontSize: 12, marginTop: 2, marginBottom: 8 },
     groupLabel: { color: t.seal, fontSize: 11, letterSpacing: 2, marginTop: 18, marginBottom: 2 },
@@ -103,18 +100,7 @@ export default function HistoryScreen(): React.JSX.Element {
 
   return (
     <ScrollView style={s.wrap} contentContainerStyle={s.scrollContent}>
-      <View style={s.headRow}>
-        <Text style={s.eyebrow}>HISTORY · 足迹</Text>
-        <Pressable
-          accessibilityLabel="返回书架"
-          accessibilityRole="button"
-          hitSlop={10}
-          style={s.backBtn}
-          onPress={() => router.back()}
-        >
-          <Text style={s.backTxt}>← 书架</Text>
-        </Pressable>
-      </View>
+      <Text style={s.eyebrow}>HISTORY · 足迹</Text>
       <Text style={s.title}>阅读历史</Text>
       <Text style={s.stats}>
         {items === null ? '读取中…' : `${items.length} 条 · 按最近阅读排序`}

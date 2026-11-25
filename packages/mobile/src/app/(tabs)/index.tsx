@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, router, useFocusEffect } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
 import { ScrollView, Pressable, Text, View } from 'react-native'
-import { usePrefs } from '../theme'
-import { listShelf } from '../db'
-import { getPair, runSync } from '../lansync'
-import { getDesktopOwner } from '../storage'
-import { COVER_PALETTE, THEMES, type BookRow, type ThemeDef } from '../types'
+import { usePrefs } from '../../theme'
+import { listShelf } from '../../db'
+import { getPair, runSync } from '../../lansync'
+import { getDesktopOwner } from '../../storage'
+import { COVER_PALETTE, THEMES, type BookRow, type ThemeDef } from '../../types'
 
 /* 每次 App 会话只自动同步一次（静默；失败不打扰） */
 let autoSynced = false
@@ -77,33 +77,9 @@ export default function Shelf(): React.JSX.Element {
   return (
     <ScrollView style={{ backgroundColor: t.bg, flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
       <View style={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ color: t.seal, fontSize: 11, letterSpacing: 2 }}>
-            {owner ? `${owner} 的藏书` : 'LIBRARY · 藏书'}
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-            <Link href="/history" asChild>
-              <Pressable
-                accessibilityLabel="阅读历史"
-                accessibilityRole="button"
-                hitSlop={10}
-                style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, paddingVertical: 4, paddingHorizontal: 2 }]}
-              >
-                <Text style={{ color: t.ink2, fontSize: 13, letterSpacing: 3 }}>历史</Text>
-              </Pressable>
-            </Link>
-            <Link href="/settings" asChild>
-              <Pressable
-                accessibilityLabel="设置"
-                accessibilityRole="button"
-                hitSlop={10}
-                style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, paddingVertical: 4, paddingHorizontal: 2 }]}
-              >
-                <Text style={{ color: t.ink2, fontSize: 13, letterSpacing: 3 }}>设置</Text>
-              </Pressable>
-            </Link>
-          </View>
-        </View>
+        <Text style={{ color: t.seal, fontSize: 11, letterSpacing: 2 }}>
+          {owner ? `${owner} 的藏书` : 'LIBRARY · 藏书'}
+        </Text>
         <Text style={{ color: t.ink, fontSize: 26, fontWeight: '600', marginTop: 4, fontFamily: 'serif' }}>书架</Text>
         <Text style={{ color: t.muted, fontSize: 12, marginTop: 2 }}>
           {loaded
