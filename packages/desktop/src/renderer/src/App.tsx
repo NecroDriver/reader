@@ -108,6 +108,27 @@ function RemoteCover({ url, title, author }: { url: string; title: string; autho
   return <img className="cover-img" src={url} alt="" onError={() => setFailed(true)} />
 }
 
+/** 历史行缩略封面：本地自定义封面 / 站点真封面 → 图片；无封面或加载失败回落调色板竖排 */
+function HistoryCover({ item }: { item: HistoryItem }) {
+  const [failed, setFailed] = useState(false)
+  const src = item.coverPath ? coverSrc(item.coverPath) : item.coverUrl
+  return (
+    <span className={'history-cover cover-' + (item.coverIdx % 5)} aria-hidden="true">
+      {src && !failed ? (
+        <img
+          className="history-cover-img"
+          src={src}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="history-cover-title">{item.title.slice(0, 4)}</span>
+      )}
+    </span>
+  )
+}
+
 function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
   const [view, setView] = useState<ViewName>('shelf')
   const [shelf, setShelf] = useState<Shelf | null>(null)
@@ -1003,12 +1024,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                         onClick={() => openBook(h)}
                         onKeyDown={(e) => e.key === 'Enter' && openBook(h)}
                       >
-                        <span
-                          className={'history-cover cover-' + (h.coverIdx % 5)}
-                          aria-hidden="true"
-                        >
-                          <span className="history-cover-title">{h.title.slice(0, 4)}</span>
-                        </span>
+                        <HistoryCover item={h} />
                         <span className="history-info">
                           <strong>{h.title}</strong>
                           <em>

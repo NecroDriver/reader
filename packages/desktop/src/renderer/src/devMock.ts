@@ -389,6 +389,8 @@ export function setupDevMock(): void {
               author: b.author,
               format: b.format,
               coverIdx: b.coverIdx,
+              coverPath: b.coverPath,
+              coverUrl: b.coverUrl,
               originPath: b.originPath,
               progress: b.progress,
               chapterLabel: b.chapterLabel,

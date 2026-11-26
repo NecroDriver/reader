@@ -868,13 +868,19 @@ body.dropping .drop-overlay { display: flex; }
 .history-row + .history-row { border-top: 1px dashed var(--line); }
 .history-row:hover + .history-row, .history-row:hover { border-top-color: transparent; }
 .history-cover {
-  flex: none; width: 34px; height: 48px; border-radius: 4px;
+  flex: none; position: relative; width: 40px; height: 56px; border-radius: 4px;
   display: flex; align-items: flex-end; justify-content: center;
   padding: 3px 2px; overflow: hidden;
 }
+/* 真封面缩略（本地自定义封面或站点封面）：铺满，与移动端历史页同为 40×56 */
+.history-cover-img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
 .history-cover-title {
   writing-mode: vertical-rl; font-family: var(--font-serif); font-size: 10px;
-  color: #f3ede0; line-height: 1.15; letter-spacing: .04em; max-height: 42px;
+  color: #f3ede0; line-height: 1.15; letter-spacing: .04em; max-height: 50px;
   overflow: hidden;
 }
 .history-cover.cover-0 { background: #221D17; }

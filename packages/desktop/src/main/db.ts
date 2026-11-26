@@ -1203,6 +1203,8 @@ export interface ReadHistoryRow {
   author: string
   format: string
   coverIdx: number
+  coverPath: string
+  coverUrl: string
   originPath: string
   progress: number
   chapterLabel: string
@@ -1214,7 +1216,7 @@ export interface ReadHistoryRow {
 export function listReadHistory(limit = 60): ReadHistoryRow[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, title, author, format, cover_idx, origin_path, progress, chapter_label,
+      `SELECT id, title, author, format, cover_idx, cover_path, cover_url, origin_path, progress, chapter_label,
               total_chapters, current_chapter, last_read_at
        FROM books WHERE last_read_at > 0 ORDER BY last_read_at DESC LIMIT ?`
     )
@@ -1225,6 +1227,8 @@ export function listReadHistory(limit = 60): ReadHistoryRow[] {
     author: String(r.author),
     format: String(r.format),
     coverIdx: Number(r.cover_idx),
+    coverPath: String(r.cover_path ?? ''),
+    coverUrl: String(r.cover_url ?? ''),
     originPath: String(r.origin_path),
     progress: Number(r.progress),
     chapterLabel: String(r.chapter_label),

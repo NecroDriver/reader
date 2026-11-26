@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { Image } from 'expo-image'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Link, useFocusEffect } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
@@ -82,9 +83,10 @@ export default function HistoryScreen(): React.JSX.Element {
       borderBottomWidth: 1,
       borderBottomColor: t.line
     },
+    /* 缩略封面：与书架同为 5:7，放大到 40×56 让真封面看得清 */
     cover: {
-      width: 34,
-      height: 48,
+      width: 40,
+      height: 56,
       borderRadius: 4,
       alignItems: 'center',
       justifyContent: 'center',
@@ -122,6 +124,9 @@ export default function HistoryScreen(): React.JSX.Element {
 
 function HistoryRowItem({ h, s }: { h: HistoryRow; s: ReturnType<typeof StyleSheet.create> }): React.JSX.Element {
   const bg = COVER_PALETTE[h.cover_idx % COVER_PALETTE.length]
+  /* 有站点真封面则显示图片；加载失败回落调色板书名缩略（与书架 CoverImage 同策略） */
+  const [failed, setFailed] = useState(false)
+  const hasCover = h.cover_url !== '' && !failed
   const chars = Array.from(h.title.trim())
   const shown = chars.slice(0, 2)
   const meta =
@@ -138,13 +143,27 @@ function HistoryRowItem({ h, s }: { h: HistoryRow; s: ReturnType<typeof StyleShe
       >
         <View style={s.row}>
           <View style={[s.cover, { backgroundColor: bg }]}>
-            <View style={{ flexDirection: 'row', gap: 1 }}>
-              {shown.map((c, i) => (
-                <Text key={i} style={s.coverChar}>
-                  {c}
-                </Text>
-              ))}
-            </View>
+            {hasCover ? (
+              <Image
+                source={{ uri: h.cover_url }}
+                /* 显式 40×56（与 s.cover 一致）：expo-image 在 web 把 style 同时落到 <img>，
+                   百分比高度在缩略图的包裹层里会解析成 0 */
+                style={{ width: 40, height: 56 }}
+                contentFit="cover"
+                onError={() => setFailed(true)}
+                recyclingKey={h.cover_url}
+                accessible
+                accessibilityLabel={`《${h.title}》封面`}
+              />
+            ) : (
+              <View style={{ flexDirection: 'row', gap: 1 }}>
+                {shown.map((c, i) => (
+                  <Text key={i} style={s.coverChar}>
+                    {c}
+                  </Text>
+                ))}
+              </View>
+            )}
           </View>
           <View style={s.info}>
             <Text style={s.rowTitle} numberOfLines={1}>

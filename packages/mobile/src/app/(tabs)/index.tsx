@@ -96,6 +96,13 @@ export default function Shelf(): React.JSX.Element {
                 <BookCard item={item} t={t} />
               </View>
             ))}
+            {/* 末行补空位：卡片是 flex:1，落单的一张会独占整行，被拉成整幅宽的巨幅封面（4/7/10 本时）。
+                空位带与卡片相同的水平内边距，保证末行卡与满行卡同宽 */}
+            {ri === rows.length - 1
+              ? Array.from({ length: 3 - row.length }, (_, k) => (
+                  <View key={'pad' + k} style={{ flex: 1, flexBasis: 0, paddingHorizontal: 5 }} />
+                ))
+              : null}
           </View>
           {/* 书架板：一行封面下一块薄木板（对标实体书架的视觉锚） */}
           <View

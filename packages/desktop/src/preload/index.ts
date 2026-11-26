@@ -31,6 +31,8 @@ export interface HistoryItem {
   author: string
   format: string
   coverIdx: number
+  coverPath: string
+  coverUrl: string
   originPath: string
   progress: number
   chapterLabel: string
@@ -106,6 +108,8 @@ const api = {
       author: String(r.author),
       format: String(r.format),
       coverIdx: Number(r.coverIdx),
+      coverPath: String(r.coverPath ?? ''),
+      coverUrl: String(r.coverUrl ?? ''),
       originPath: String(r.originPath),
       progress: Number(r.progress),
       chapterLabel: String(r.chapterLabel),

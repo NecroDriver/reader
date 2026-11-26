@@ -242,6 +242,8 @@ export interface HistoryRow {
   author: string
   format: string
   cover_idx: number
+  /** 站点真封面（与书架同源）；空串=无封面，走调色板缩略 */
+  cover_url: string
   progress: number
   chapter_label: string
   total_chapters: number
@@ -252,7 +254,7 @@ export interface HistoryRow {
 /** 阅读历史（最近阅读优先，只含有阅读痕迹的书） */
 export async function listHistory(db: SQLiteDatabase): Promise<HistoryRow[]> {
   return db.getAllAsync<HistoryRow>(
-    `SELECT id, title, author, format, cover_idx, progress, chapter_label,
+    `SELECT id, title, author, format, cover_idx, cover_url, progress, chapter_label,
             total_chapters, current_chapter, last_read_at
        FROM books
       WHERE last_read_at > 0

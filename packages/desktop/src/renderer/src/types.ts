@@ -102,6 +102,8 @@ export interface HistoryItem {
   author: string
   format: string
   coverIdx: number
+  coverPath: string
+  coverUrl: string
   originPath: string
   progress: number
   chapterLabel: string
