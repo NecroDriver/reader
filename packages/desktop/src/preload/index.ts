@@ -13,7 +13,8 @@ function mapBook(r: any) {
     totalChapters: r.total_chapters ?? 0,
     currentChapter: r.current_chapter ?? 0,
     originPath: r.origin_path ?? '',
-    coverPath: (r.cover_path ?? '') as string
+    coverPath: (r.cover_path ?? '') as string,
+    coverUrl: (r.cover_url ?? '') as string
   }
 }
 export interface ImportOutcome {
@@ -226,8 +227,8 @@ const api = {
   },
 
   /* 在线小说 */
-  createNovel: (tocUrl: string): Promise<{ ok: boolean; bookId?: number; title?: string; author?: string; chapters?: number; error?: string }> =>
-    ipcRenderer.invoke('novel:create', tocUrl),
+  createNovel: (tocUrl: string, coverUrl?: string): Promise<{ ok: boolean; bookId?: number; title?: string; author?: string; chapters?: number; error?: string }> =>
+    ipcRenderer.invoke('novel:create', tocUrl, coverUrl ?? ''),
   pauseNovel: (bookId: number): Promise<NovelJob | null> => ipcRenderer.invoke('novel:pause', bookId),
   resumeNovel: (bookId: number): Promise<NovelJob | null> => ipcRenderer.invoke('novel:resume', bookId),
   recrawlNovel: (bookId: number): Promise<NovelJob | null> => ipcRenderer.invoke('novel:recrawl', bookId),

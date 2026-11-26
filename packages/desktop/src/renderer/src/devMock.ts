@@ -164,6 +164,18 @@ const deletedBooks = new Set<number>()
 const mockBookEdits = new Map<number, { title?: string; author?: string; downloadUrl?: string }>()
 const mockCovers = new Map<number, string>()
 
+/** 301 在线小说的模拟远程封面：墨色底朱砂题字（data URL，CSP 允许） */
+const MOCK_NOVEL_COVER =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="250" height="350">
+      <rect width="250" height="350" fill="#221D17"/>
+      <rect x="18" y="18" width="214" height="314" fill="none" stroke="#B5402A" stroke-width="3"/>
+      <text x="125" y="120" font-size="34" fill="#F3EFE6" text-anchor="middle" font-family="serif">墨与纸</text>
+      <text x="125" y="160" font-size="15" fill="#B5402A" text-anchor="middle" font-family="serif">在线抓取 · 模拟封面</text>
+    </svg>`
+  )
+
 function shelf(): Shelf {
   return {
     books: [
@@ -182,7 +194,8 @@ function shelf(): Shelf {
         ...b,
         title: e?.title ?? b.title,
         author: e?.author ?? b.author,
-        coverPath: cover ?? ''
+        coverPath: cover ?? '',
+        coverUrl: b.id === 301 ? MOCK_NOVEL_COVER : ''
       }
     }),
     lastSyncAt: lastSync
@@ -514,7 +527,7 @@ export function setupDevMock(): void {
     },
 
     /* 在线小说（mock） */
-    createNovel: (tocUrl: string) => {
+    createNovel: (tocUrl: string, coverUrl?: string) => {
       if (!/^https?:\/\//i.test(tocUrl)) {
         return Promise.resolve({ ok: false, error: '地址格式不正确' })
       }
@@ -522,11 +535,13 @@ export function setupDevMock(): void {
       if (known) {
         novelChapters = mockNovelSeed()
         novelJobState = null
+        if (coverUrl) mockCovers.set(301, coverUrl)
         mockCrawl(0, novelChapters.length)
         return Promise.resolve({ ok: true, bookId: 301, title: known.title, author: known.author, chapters: known.chapters })
       }
       novelChapters = mockNovelSeed()
       novelJobState = null
+      if (coverUrl) mockCovers.set(301, coverUrl)
       mockCrawl(0, novelChapters.length)
       return Promise.resolve({ ok: true, bookId: 301, title: '墨与纸(模拟·在线抓取)', author: '墨纸工坊', chapters: novelChapters.length })
     },

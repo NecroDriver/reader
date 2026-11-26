@@ -15,6 +15,7 @@ export interface BookRow {
   format: string
   cover_idx: number
   cover_path: string
+  cover_url: string
   progress: number
   chapter_label: string
   total_chapters: number

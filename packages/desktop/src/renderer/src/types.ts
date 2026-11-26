@@ -10,6 +10,7 @@ export interface Book {
   currentChapter: number
   originPath: string
   coverPath: string
+  coverUrl: string
 }
 export interface BookDetail {
   id: number

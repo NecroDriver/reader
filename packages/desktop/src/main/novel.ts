@@ -19,6 +19,8 @@ export interface TocParseResult {
   bookTitle: string
   author: string
   chapters: TocChapter[]
+  /** 目录页 og:novel:image / og:image 封面（绝对 https 地址，可能缺） */
+  coverUrl?: string
 }
 
 /** 章节链接文本判定（比 CH_RE 宽：目录页允许更长标题） */
@@ -121,6 +123,21 @@ export function parseTocHtml(html: string, baseUrl: string): TocParseResult {
     }
   }
 
+  // 封面：og:novel:image 优先（小说站点标准），回退 og:image；仅收 https
+  let coverUrl = ''
+  const ogCover =
+    document.querySelector('meta[property="og:novel:image"]')?.getAttribute('content') ??
+    document.querySelector('meta[property="og:image"]')?.getAttribute('content') ??
+    ''
+  if (ogCover) {
+    try {
+      const cu = new URL(ogCover, baseUrl)
+      if (cu.protocol === 'https:') coverUrl = cu.href
+    } catch {
+      /* 无效封面地址 → 忽略 */
+    }
+  }
+
   // 书名/作者：优先 h1（目录页通常有书名标题）；否则 title 分段取「最长且不像站名」的段
   let bookTitle = ''
   let author = ''
@@ -151,7 +168,7 @@ export function parseTocHtml(html: string, baseUrl: string): TocParseResult {
   author = author
     .replace(/(更新时间|最新章节?|最新三章节|最后更新|发表时间|状态|分类|字数|点击|推荐|收藏|入库|连载|完结|授权|签约|来源|责编).*/,'')
     .slice(0, 16)
-  return { bookTitle, author, chapters: orderChapters(chapters) }
+  return { bookTitle, author, chapters: orderChapters(chapters), coverUrl: coverUrl || undefined }
 }
 
 /* ---------- 目录排序 ---------- */
@@ -275,7 +292,12 @@ export async function parseTocPages(startUrl: string): Promise<TocParseResult> {
     first = parseTocHtml(raw || '<html></html>', startUrl)
   }
   // 多页合并后必须整体重排：各页排序结果按「到达顺序」拼接仍是乱序
-  return { bookTitle: first.bookTitle, author: first.author, chapters: orderChapters(chapters) }
+  return {
+    bookTitle: first.bookTitle,
+    author: first.author,
+    chapters: orderChapters(chapters),
+    coverUrl: first.coverUrl
+  }
 }
 
 /* ---------- 章内分页（一页一章的站点会把长章拆成 -1/-2/-3… 多页） ---------- */

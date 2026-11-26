@@ -19,6 +19,7 @@ export interface BookRow {
   origin_path: string
   cfi: string
   cover_path: string
+  cover_url: string
   download_url: string
   created_at: string
 }
@@ -150,6 +151,9 @@ function migrate(d: Database.Database): void {
   }
   if (!bookCols.some((c) => c.name === 'download_url')) {
     d.exec("ALTER TABLE books ADD COLUMN download_url TEXT NOT NULL DEFAULT ''")
+  }
+  if (!bookCols.some((c) => c.name === 'cover_url')) {
+    d.exec("ALTER TABLE books ADD COLUMN cover_url TEXT NOT NULL DEFAULT ''")
   }
   if (!bookCols.some((c) => c.name === 'last_read_at')) {
     d.exec('ALTER TABLE books ADD COLUMN last_read_at REAL NOT NULL DEFAULT 0')
@@ -739,19 +743,31 @@ export interface NovelSourceRow {
 }
 
 /** 建小说书：books 加一条 format='NOVEL'，novel_sources 记录目录页 */
-export function createNovelBook(tocUrl: string, title: string, author: string, totalChapters: number): number {
+export function createNovelBook(
+  tocUrl: string,
+  title: string,
+  author: string,
+  totalChapters: number,
+  coverUrl = ''
+): number {
   const d = getDb()
   const dup = d
     .prepare("SELECT id FROM books WHERE format = 'NOVEL' AND title = ?")
     .get(title) as { id: number } | undefined
-  if (dup) return dup.id
+  if (dup) {
+    // 已有同名书：回填缺失的封面（不动其他字段）
+    if (coverUrl) {
+      d.prepare("UPDATE books SET cover_url = ? WHERE id = ? AND cover_url = ''").run(coverUrl, dup.id)
+    }
+    return dup.id
+  }
   const tx = d.transaction(() => {
     const info = d
       .prepare(
-        `INSERT INTO books (title, author, format, cover_idx, progress, chapter_label, sort_at, total_chapters, current_chapter, origin_path, sync_uuid, updated_at)
-         VALUES (?,?,'NOVEL',?,0,'',?, 0, 0, '', ?, ?)`
+        `INSERT INTO books (title, author, format, cover_idx, progress, chapter_label, sort_at, total_chapters, current_chapter, origin_path, sync_uuid, updated_at, cover_url)
+         VALUES (?,?,'NOVEL',?,0,'',?, 0, 0, '', ?, ?, ?)`
       )
-      .run(title, author, Math.floor(Math.random() * 5), Date.now() / 1000, randomUUID(), Date.now())
+      .run(title, author, Math.floor(Math.random() * 5), Date.now() / 1000, randomUUID(), Date.now(), coverUrl)
     const bookId = Number(info.lastInsertRowid)
     d.prepare('INSERT INTO novel_sources (book_id, toc_url, total, created_at) VALUES (?,?,?,?)').run(
       bookId,
@@ -762,6 +778,17 @@ export function createNovelBook(tocUrl: string, title: string, author: string, t
     return bookId
   })
   return tx()
+}
+
+/** 补小说封面：仅在该书尚无封面时写入（crawl 时从目录页 og 元数据回填）；touch updated_at 让手机端同步拿到 */
+export function setNovelCoverUrl(bookId: number, url: string): void {
+  if (!url) return
+  const d = getDb()
+  const cur = d.prepare('SELECT cover_url, cover_path FROM books WHERE id = ?').get(bookId) as
+    | { cover_url: string; cover_path: string }
+    | undefined
+  if (!cur || cur.cover_url || cur.cover_path) return
+  d.prepare('UPDATE books SET cover_url = ?, updated_at = ? WHERE id = ?').run(url, Date.now(), bookId)
 }
 
 export function getNovelSource(bookId: number): NovelSourceRow | undefined {
@@ -1126,6 +1153,7 @@ export interface SyncBookRow {
   format: string
   coverIdx: number
   coverPath: string
+  coverUrl: string
   progress: number
   chapterLabel: string
   totalChapters: number
@@ -1140,7 +1168,7 @@ export interface SyncBookRow {
 export function listSyncBooks(since: number): SyncBookRow[] {
   const rows = getDb()
     .prepare(
-      `SELECT sync_uuid, title, author, format, cover_idx, cover_path, progress, chapter_label,
+      `SELECT sync_uuid, title, author, format, cover_idx, cover_path, cover_url, progress, chapter_label,
               total_chapters, current_chapter, sort_at, updated_at, chapters_rev, last_read_at
        FROM books WHERE updated_at > ? ORDER BY sort_at DESC`
     )
@@ -1152,6 +1180,7 @@ export function listSyncBooks(since: number): SyncBookRow[] {
     format: String(r.format),
     coverIdx: Number(r.cover_idx),
     coverPath: String(r.cover_path),
+    coverUrl: String(r.cover_url),
     progress: Number(r.progress),
     chapterLabel: String(r.chapter_label),
     totalChapters: Number(r.total_chapters),

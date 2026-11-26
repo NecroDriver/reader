@@ -33,7 +33,8 @@
         {
           "cameraPermission": "允许墨纸使用相机扫描配对二维码"
         }
-      ]
+      ],
+      "expo-image"
     ]
   }
 }

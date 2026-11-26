@@ -21,6 +21,7 @@ export async function ensureSchema(db: SQLiteDatabase): Promise<void> {
       origin_path TEXT DEFAULT '',
       cfi TEXT DEFAULT '',
       cover_path TEXT DEFAULT '',
+      cover_url TEXT DEFAULT '',
       download_url TEXT DEFAULT '',
       sync_uuid TEXT DEFAULT '',
       updated_at REAL DEFAULT 0,
@@ -47,11 +48,12 @@ export async function ensureSchema(db: SQLiteDatabase): Promise<void> {
   if (!have.has('updated_at')) await db.execAsync('ALTER TABLE books ADD COLUMN updated_at REAL DEFAULT 0')
   if (!have.has('chapters_rev')) await db.execAsync('ALTER TABLE books ADD COLUMN chapters_rev INTEGER DEFAULT 0')
   if (!have.has('last_read_at')) await db.execAsync('ALTER TABLE books ADD COLUMN last_read_at REAL DEFAULT 0')
+  if (!have.has('cover_url')) await db.execAsync("ALTER TABLE books ADD COLUMN cover_url TEXT DEFAULT ''")
 }
 
 export async function listShelf(db: SQLiteDatabase): Promise<BookRow[]> {
   return db.getAllAsync<BookRow>(
-    `SELECT id, title, author, format, cover_idx, cover_path, progress, chapter_label,
+    `SELECT id, title, author, format, cover_idx, cover_path, cover_url, progress, chapter_label,
             total_chapters, current_chapter, sort_at
        FROM books
       ORDER BY sort_at DESC, id DESC`
@@ -107,6 +109,7 @@ export interface SyncBookIn {
   format: string
   coverIdx: number
   coverPath: string
+  coverUrl?: string
   progress: number
   chapterLabel: string
   totalChapters: number
@@ -150,11 +153,11 @@ export async function upsertSyncBook(db: SQLiteDatabase, b: SyncBookIn): Promise
   if (existing == null) {
     const r = await db.runAsync(
       `INSERT INTO books
-         (title, author, format, cover_idx, cover_path, progress, chapter_label,
+         (title, author, format, cover_idx, cover_path, cover_url, progress, chapter_label,
           total_chapters, current_chapter, sort_at, created_at, sync_uuid, updated_at, chapters_rev, last_read_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, 0, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, 0, ?, ?)`,
       [
-        b.title, b.author, b.format, b.coverIdx, b.coverPath, b.progress, b.chapterLabel,
+        b.title, b.author, b.format, b.coverIdx, b.coverPath, b.coverUrl ?? '', b.progress, b.chapterLabel,
         b.totalChapters, b.currentChapter, b.sortAt, b.uuid, b.chaptersRev, b.lastReadAt ?? 0
       ]
     )
@@ -162,10 +165,13 @@ export async function upsertSyncBook(db: SQLiteDatabase, b: SyncBookIn): Promise
   }
   await db.runAsync(
     `UPDATE books SET title = ?, author = ?, format = ?, cover_idx = ?, cover_path = ?,
+        cover_url = CASE WHEN ? != '' THEN ? ELSE cover_url END,
         total_chapters = ?, sort_at = ?, chapters_rev = ?,
         last_read_at = CASE WHEN last_read_at < ? THEN ? ELSE last_read_at END
       WHERE id = ?`,
-    [b.title, b.author, b.format, b.coverIdx, b.coverPath, b.totalChapters, b.sortAt, b.chaptersRev,
+    [b.title, b.author, b.format, b.coverIdx, b.coverPath,
+      b.coverUrl ?? '', b.coverUrl ?? '',
+      b.totalChapters, b.sortAt, b.chaptersRev,
       b.lastReadAt ?? 0, b.lastReadAt ?? 0, existing]
   )
   /* 进度 LWW：本地 updated_at 非零=手机读过且未上推过，仅当服务端时间更新才覆盖 */

@@ -38,6 +38,7 @@ export interface NovelDbApi {
   updateNovelProgress(bookId: number, cursorUrl: string, fetched: number, total: number, status: string): void
   setBookChapterCount(bookId: number): void
   listOnlineBookIds(): number[]
+  setNovelCoverUrl(bookId: number, url: string): void
 }
 let dbApi: NovelDbApi | null = null
 export function setNovelDb(api: NovelDbApi): void {
@@ -69,6 +70,8 @@ export async function crawlNovel(bookId: number): Promise<NovelJobState> {
 
   try {
     const toc = await parseTocPages(src.tocUrl)
+    // 封面回填：目录页 og 元数据（已有封面/本地自定义封面的书不动）
+    if (toc.coverUrl) dbApi.setNovelCoverUrl(bookId, toc.coverUrl)
     const tocUrls = new Set(toc.chapters.map((c) => c.url))
     const tocPos = new Map(toc.chapters.map((c, i) => [c.url, i]))
     const existing = new Map(dbApi.listChapterUrls(bookId).map((c) => [c.url, c]))

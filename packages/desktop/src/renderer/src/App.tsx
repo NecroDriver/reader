@@ -77,6 +77,20 @@ function historyGroups(items: HistoryItem[]): { key: string; label: string; item
   return groups.filter((g) => g.items.length > 0)
 }
 
+/** 远程封面（站点 og:image）：加载失败回落调色板竖排（RemoteCover 自己带失败态） */
+function RemoteCover({ url, title, author }: { url: string; title: string; author: string }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) {
+    return (
+      <>
+        <span className="cover-title">{title}</span>
+        <span className="cover-author">{author}</span>
+      </>
+    )
+  }
+  return <img className="cover-img" src={url} alt="" onError={() => setFailed(true)} />
+}
+
 function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
   const [view, setView] = useState<ViewName>('shelf')
   const [shelf, setShelf] = useState<Shelf | null>(null)
@@ -510,7 +524,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
       if (guestGate('添加小说')) return
       setAddingToc(it.tocUrl)
       try {
-        const r = await window.mozhi.createNovel(it.tocUrl)
+        const r = await window.mozhi.createNovel(it.tocUrl, it.coverUrl || undefined)
         if (r.ok && r.bookId !== undefined) {
           setNovelJobs((j) => ({
             ...j,
@@ -689,6 +703,8 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                     >
                       {b.coverPath ? (
                         <img className="cover-img" src={coverSrc(b.coverPath)} alt="" />
+                      ) : b.coverUrl ? (
+                        <RemoteCover url={b.coverUrl} title={b.title} author={b.author} />
                       ) : (
                         <>
                           <span className="cover-title">{b.title}</span>

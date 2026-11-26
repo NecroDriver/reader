@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, router, useFocusEffect } from 'expo-router'
 import { useSQLiteContext } from 'expo-sqlite'
+import { Image } from 'expo-image'
 import { ScrollView, Pressable, Text, View } from 'react-native'
 import { usePrefs } from '../../theme'
 import { listShelf } from '../../db'
@@ -88,12 +89,30 @@ export default function Shelf(): React.JSX.Element {
         </Text>
       </View>
       {rows.map((row, ri) => (
-        <View key={ri} style={{ flexDirection: 'row', paddingHorizontal: 15 }}>
-          {row.map((item) => (
-            <View key={item.id} style={{ flex: 1, flexBasis: 0, paddingHorizontal: 5, paddingBottom: 14 }}>
-              <BookCard item={item} t={t} />
-            </View>
-          ))}
+        <View key={ri}>
+          <View style={{ flexDirection: 'row', paddingHorizontal: 15 }}>
+            {row.map((item) => (
+              <View key={item.id} style={{ flex: 1, flexBasis: 0, paddingHorizontal: 5, paddingBottom: 0 }}>
+                <BookCard item={item} t={t} />
+              </View>
+            ))}
+          </View>
+          {/* 书架板：一行封面下一块薄木板（对标实体书架的视觉锚） */}
+          <View
+            style={{
+              height: 5,
+              marginHorizontal: 10,
+              marginTop: 4,
+              borderRadius: 2,
+              backgroundColor: '#9B8266',
+              shadowColor: '#221D17',
+              shadowOpacity: 0.3,
+              shadowRadius: 3,
+              shadowOffset: { width: 0, height: 2 },
+              elevation: 3
+            }}
+          />
+          <View style={{ height: 18 }} />
         </View>
       ))}
       {loaded && books.length === 0 ? (
@@ -148,45 +167,81 @@ function BookCard({ item, t }: { item: BookRow; t: ThemeDef }): React.JSX.Elemen
         accessibilityLabel={`打开《${item.title}》`}
         style={({ pressed }) => [{ opacity: pressed ? 0.78 : 1 }]}
       >
-        <View
-          style={{
-            aspectRatio: 5 / 7,
-            width: '100%',
-            backgroundColor: bg,
-            borderRadius: 6,
-            paddingHorizontal: 9,
-            paddingTop: 8,
-            paddingBottom: 7,
-            shadowColor: '#221D17',
-            shadowOpacity: 0.22,
-            shadowRadius: 6,
-            shadowOffset: { width: 0, height: 3 },
-            elevation: 4
-          }}
-        >
+        <CoverImage item={item} bg={bg} />
+        <Text numberOfLines={1} style={{ color: t.ink2, fontSize: 11.5, marginTop: 6, textAlign: 'center' }}>
+          {item.author || '佚名'} · {meta}
+        </Text>
+      </Pressable>
+    </Link>
+  )
+}
+
+/** 封面：有远程真封面（站点 og:image）→ expo-image 全幅铺满 + 角标/进度浮层；
+ *  否则调色板竖排书名（本地导入书）。加载失败自动回落调色板。 */
+function CoverImage({ item, bg }: { item: BookRow; bg: string }): React.JSX.Element {
+  const [failed, setFailed] = useState(false)
+  const hasCover = item.cover_url !== '' && !failed
+  return (
+    <View
+      style={{
+        aspectRatio: 5 / 7,
+        width: '100%',
+        backgroundColor: bg,
+        borderRadius: 6,
+        overflow: 'hidden',
+        shadowColor: '#221D17',
+        shadowOpacity: 0.22,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 4
+      }}
+    >
+      {hasCover ? (
+        <Image
+          source={{ uri: item.cover_url }}
+          style={{ flex: 1, width: '100%', height: '100%' }}
+          contentFit="cover"
+          onError={() => setFailed(true)}
+          recyclingKey={item.cover_url}
+          accessible
+          accessibilityLabel={`《${item.title}》封面`}
+        />
+      ) : (
+        <View style={{ flex: 1, paddingHorizontal: 9, paddingTop: 8, paddingBottom: 7 }}>
           <FormatChip format={item.format} />
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <VerticalTitle title={item.title} />
           </View>
-          {item.progress > 0 ? (
-            <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(243,237,224,.25)', marginBottom: 5, flexDirection: 'row' }}>
-              <View
-                style={{
-                  width: `${Math.min(100, item.progress)}%`,
-                  backgroundColor: '#C05A42',
-                  borderRadius: 2
-                }}
-              />
-            </View>
-          ) : null}
           <Text style={{ color: 'rgba(243,237,224,.85)', fontSize: 10.5, letterSpacing: 0.5, textAlign: 'center' }} numberOfLines={1}>
             {item.author || '佚名'}
           </Text>
         </View>
-        <Text numberOfLines={1} style={{ color: t.ink2, fontSize: 11.5, marginTop: 6, textAlign: 'center' }}>
-          {meta}
-        </Text>
-      </Pressable>
-    </Link>
+      )}
+      {hasCover ? (
+        <View style={{ position: 'absolute', top: 6, left: 6 }}>
+          <FormatChip format={item.format} />
+        </View>
+      ) : null}
+      {item.progress > 0 ? (
+        <View
+          style={{
+            position: hasCover ? 'absolute' : 'relative',
+            bottom: hasCover ? 0 : undefined,
+            left: 0,
+            right: 0,
+            height: 3,
+            backgroundColor: 'rgba(34,29,23,.35)',
+            flexDirection: 'row'
+          }}
+        >
+          <View
+            style={{
+              width: `${Math.min(100, item.progress)}%`,
+              backgroundColor: '#C05A42'
+            }}
+          />
+        </View>
+      ) : null}
+    </View>
   )
 }

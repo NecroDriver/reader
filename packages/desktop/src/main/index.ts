@@ -45,6 +45,7 @@ import {
   getBookTitleById,
   closeDb,
   listOnlineBookIds,
+  setNovelCoverUrl,
   listReadHistory
 } from './db'
 import {
@@ -393,7 +394,8 @@ void (async (): Promise<void> => {
     insertCrawledChapter,
     updateNovelProgress,
     setBookChapterCount,
-    listOnlineBookIds
+    listOnlineBookIds,
+    setNovelCoverUrl
   })
   /* 小说抓取进度：推给阅读页 + 写入订阅页「同步记录」（唯一活条目带实时进度） */
   const novelLive = new Set<number>()
@@ -459,13 +461,15 @@ void (async (): Promise<void> => {
     return true
   })
 
-  ipcMain.handle('novel:create', async (_e, tocUrl: string) => {
+  ipcMain.handle('novel:create', async (_e, tocUrl: string, coverUrl = '') => {
     try {
       const toc = await parseTocPages(tocUrl)
       if (toc.chapters.length < 3) {
         return { ok: false, error: `目录解析到 ${toc.chapters.length} 章，疑似不是目录页` }
       }
-      const bookId = createNovelBook(tocUrl, toc.bookTitle, toc.author, toc.chapters.length)
+      // 封面优先级：调用方显式传入（书城解析结果）> 目录页 og 元数据
+      const cover = coverUrl || toc.coverUrl || ''
+      const bookId = createNovelBook(tocUrl, toc.bookTitle, toc.author, toc.chapters.length, cover)
       const src = getNovelSource(bookId)
       if (src && src.status !== 'running') void crawlNovel(bookId)
       return { ok: true, bookId, title: toc.bookTitle, author: toc.author, chapters: toc.chapters.length }

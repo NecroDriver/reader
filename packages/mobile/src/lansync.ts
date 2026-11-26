@@ -35,6 +35,7 @@ interface ServerBook {
   format: string
   coverIdx: number
   coverPath: string
+  coverUrl?: string
   progress: number
   chapterLabel: string
   totalChapters: number
@@ -53,6 +54,7 @@ function toSyncBookIn(b: ServerBook): SyncBookIn {
     format: b.format,
     coverIdx: b.coverIdx,
     coverPath: b.coverPath,
+    coverUrl: b.coverUrl,
     progress: b.progress,
     chapterLabel: b.chapterLabel,
     totalChapters: b.totalChapters,
