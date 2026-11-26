@@ -8,6 +8,7 @@ import {
   Text,
   View
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LH_CHOICES, MAX_SIZE, MIN_SIZE, usePrefs } from '../../theme'
 import { getBook, getChapter, getSetting, getToc, saveProgress, setSetting } from '../../db'
 import { THEMES, type TocRow } from '../../types'
@@ -21,6 +22,7 @@ export default function Reader(): React.JSX.Element | null {
   const { id } = useLocalSearchParams<{ id: string }>()
   const bookId = Number(id)
   const db = useSQLiteContext()
+  const insets = useSafeAreaInsets()
   const { theme, setTheme, size, setSize, lh, setLh } = usePrefs()
   const t = THEMES[theme]
 
@@ -390,7 +392,7 @@ export default function Reader(): React.JSX.Element | null {
         </>
       ) : null}
 
-      {/* 目录抽屉：遮罩点击关闭；内部空档不外溢；分页渲染 + 倒序 */}
+      {/* 目录抽屉（对标竞品）：宽面板 + 安全区头部（书名/作者/关闭）+ 工具行 + 章节行带字数 */}
       <Modal visible={tocOpen} animationType="slide" transparent onRequestClose={() => setTocOpen(false)}>
         <View style={{ flex: 1 }}>
           <Pressable
@@ -404,18 +406,57 @@ export default function Reader(): React.JSX.Element | null {
               top: 0,
               bottom: 0,
               right: 0,
-              width: '78%',
+              width: '92%',
               backgroundColor: t.surface,
-              paddingVertical: 16,
-              paddingHorizontal: 14
+              paddingLeft: 16,
+              paddingRight: 12
             }}
           >
+            {/* 头部块：避开状态栏（web 无安全区时保底留白，两端都不贴顶），书名 + 作者 + 关闭 */}
+            <View
+              style={{
+                paddingTop: Math.max(insets.top, 16) + 8,
+                paddingBottom: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10
+              }}
+            >
+              <View style={{ flex: 1, minHeight: 1 }}>
+                <Text
+                  numberOfLines={1}
+                  style={{ color: t.ink, fontSize: 17, fontWeight: '600', fontFamily: 'serif' }}
+                >
+                  {title || '目录'}
+                </Text>
+                {author ? (
+                  <Text style={{ color: t.muted, fontSize: 12, marginTop: 3 }}>{author} 著</Text>
+                ) : null}
+              </View>
+              <Pressable
+                accessibilityLabel="关闭目录"
+                onPress={() => setTocOpen(false)}
+                hitSlop={8}
+                style={{
+                  width: 30,
+                  height: 30,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 999,
+                  backgroundColor: t.surface2
+                }}
+              >
+                <Text style={{ color: t.ink2, fontSize: 14, lineHeight: 18 }}>✕</Text>
+              </Pressable>
+            </View>
+
+            {/* 工具行：统计 + 正序/倒序 */}
             <View
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: 10
+                marginBottom: 8
               }}
             >
               <Text style={{ color: t.muted, fontSize: 11, letterSpacing: 2 }}>
@@ -468,7 +509,12 @@ export default function Reader(): React.JSX.Element | null {
               </Pressable>
             )}
 
-            <ScrollView ref={tocScrollRef} onScroll={onTocScroll} scrollEventThrottle={200}>
+            <ScrollView
+              ref={tocScrollRef}
+              onScroll={onTocScroll}
+              scrollEventThrottle={200}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+            >
               {tocStart > 0 && (
                 <Pressable
                   accessibilityLabel="加载前面章节"
@@ -501,11 +547,22 @@ export default function Reader(): React.JSX.Element | null {
                     setTocOpen(false)
                     goChapter(c.idx)
                   }}
-                  style={{ paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: t.line }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    paddingVertical: 10,
+                    paddingHorizontal: 4,
+                    borderBottomWidth: 1,
+                    borderBottomColor: t.line,
+                    backgroundColor: c.idx === chIdx ? t.sealSoft : 'transparent',
+                    borderRadius: 4
+                  }}
                 >
                   <Text
                     numberOfLines={1}
                     style={{
+                      flex: 1,
                       color: c.idx === chIdx ? t.seal : t.ink2,
                       fontSize: 13,
                       fontWeight: c.idx === chIdx ? '600' : '400'
@@ -513,6 +570,11 @@ export default function Reader(): React.JSX.Element | null {
                   >
                     {c.title}
                   </Text>
+                  {typeof c.chars === 'number' && c.chars > 0 ? (
+                    <Text style={{ color: t.muted, fontSize: 10.5, fontVariant: ['tabular-nums'] }}>
+                      {c.chars.toLocaleString()}
+                    </Text>
+                  ) : null}
                 </Pressable>
               ))}
               {tocStart + tocLimit < ordered.length && (

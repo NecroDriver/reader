@@ -70,7 +70,7 @@ export async function getBook(
 
 export async function getToc(db: SQLiteDatabase, bookId: number): Promise<TocRow[]> {
   return db.getAllAsync<TocRow>(
-    'SELECT idx, title FROM chapters WHERE book_id = ? AND deleted = 0 ORDER BY idx',
+    'SELECT idx, title, length(content) AS chars FROM chapters WHERE book_id = ? AND deleted = 0 ORDER BY idx',
     [bookId]
   )
 }

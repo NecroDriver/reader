@@ -26,6 +26,8 @@ export interface BookRow {
 export interface TocRow {
   idx: number
   title: string
+  /** 章节字数（length(content)），目录行右缘展示 */
+  chars?: number
 }
 
 /** 四主题，与桌面端同源（paper/sepia/green/ink 的精确 HEX 搬运） */
