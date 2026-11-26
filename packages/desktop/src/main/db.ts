@@ -621,7 +621,7 @@ export function clearArticles(): void {
 /* ---------- 同步记录（settings 表 JSON，环 30 条） ---------- */
 
 export interface PullLogEntry {
-  at: string // HH:MM
+  at: string // 本地时间 YYYY-MM-DDTHH:mm；历史数据可能是纯 HH:MM（渲染层兼容）
   name: string
   added: number
   ok: boolean
@@ -664,17 +664,21 @@ export function getPullLogs(): PullLogEntry[] {
   }
 }
 
+/** 同步记录时间戳：本地 YYYY-MM-DDTHH:mm（可排序、可区分天） */
+function logStamp(d = new Date()): string {
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 /** 「更新全部」完成后的汇总行（手动触发可见；启动时自动更新不记录，防噪音） */
 export function logUpdateAllResult(r: { checked: number; updatedBooks: number; addedChapters: number }): void {
-  const pad = (n: number): string => String(n).padStart(2, '0')
-  const d = new Date()
   const note =
     r.checked === 0
       ? '没有在线小说'
       : r.addedChapters > 0
         ? `${r.updatedBooks} 本有更新 · 新增 ${r.addedChapters} 章`
         : `已检查 ${r.checked} 本 · 无新章节`
-  addPullLog({ at: `${pad(d.getHours())}:${pad(d.getMinutes())}`, name: '更新全部', added: r.addedChapters, ok: true, note })
+  addPullLog({ at: logStamp(), name: '更新全部', added: r.addedChapters, ok: true, note })
 }
 
 /** 小说抓取任务在同步记录里的唯一活条目（running/paused），没有则新建到最前 */
@@ -682,9 +686,8 @@ export function upsertNovelPullLog(bookId: number, title: string, patch: Partial
   const list = getPullLogs()
   let e = list.find((x) => x.kind === 'novel' && x.bookId === bookId && (x.running || x.paused))
   if (!e) {
-    const d = new Date()
     e = {
-      at: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+      at: logStamp(),
       name: title,
       added: 0,
       ok: true

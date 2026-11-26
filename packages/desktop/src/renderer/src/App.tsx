@@ -50,6 +50,23 @@ const ExpandIcon = (
 
 /* ---------- 阅读历史工具 ---------- */
 
+/** 同步记录时间：新数据 YYYY-MM-DDTHH:mm → 今天 HH:MM / 昨天 HH:MM / MM-DD HH:MM / YYYY-MM-DD；旧数据纯 HH:MM 原样 */
+function fmtLogAt(at: string): string {
+  if (!at) return ''
+  if (/^\d{1,2}:\d{2}$/.test(at)) return at
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(at)
+  if (!m) return at
+  const [, y, mo, dd, h, mi] = m
+  const d = new Date(Number(y), Number(mo) - 1, Number(dd))
+  const now = new Date()
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const t = d.getTime()
+  if (t >= dayStart) return `${h}:${mi}`
+  if (t >= dayStart - 86400000) return `昨天 ${h}:${mi}`
+  if (d.getFullYear() === now.getFullYear()) return `${mo}-${dd} ${h}:${mi}`
+  return `${y}-${mo}-${dd}`
+}
+
 function fmtReadTime(ts: number): string {
   const d = new Date(ts)
   const p = (x: number): string => String(x).padStart(2, '0')
@@ -1337,7 +1354,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                   {pullLogs.map((l, i) =>
                     l.kind === 'novel' ? (
                       <li key={i} className={'pull-log-row novel' + (l.ok ? '' : ' fail')}>
-                        <span className="pull-log-at">{l.at}</span>
+                        <span className="pull-log-at">{fmtLogAt(l.at)}</span>
                         <span className="pull-log-name">《{l.name || '小说'}》</span>
                         {l.running || l.paused ? (
                           <span className="pull-log-res novel-live">
@@ -1366,7 +1383,7 @@ function LibraryAppInner({ onLogout }: { onLogout: () => void }) {
                       </li>
                     ) : (
                       <li key={i} className={'pull-log-row legacy' + (l.ok ? '' : ' fail')}>
-                        <span className="pull-log-at">{l.at}</span>
+                        <span className="pull-log-at">{fmtLogAt(l.at)}</span>
                         <span className="pull-log-name">{l.name || '未命名源'}</span>
                         <span className={'pull-log-res' + (l.added > 0 ? ' added' : '')}>
                           {l.ok

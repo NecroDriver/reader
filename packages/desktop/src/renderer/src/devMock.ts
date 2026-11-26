@@ -45,11 +45,22 @@ const pullLogs: {
   done?: number
   total?: number
 }[] = [
-  { at: '15:02', name: '墨与纸(模拟·在线抓取)', added: 3, ok: true, kind: 'novel', bookId: 301 },
-  { at: '14:32', name: '阮一峰周刊', added: 3, ok: true },
+  { at: logStamp(0), name: '墨与纸(模拟·在线抓取)', added: 3, ok: true, kind: 'novel', bookId: 301 },
+  { at: logStamp(0), name: '阮一峰周刊', added: 3, ok: true },
+  { at: logStamp(1), name: '青山', added: 840, ok: true, kind: 'novel', bookId: 302 },
+  { at: logStamp(3), name: '元始法则', added: 1329, ok: true, kind: 'novel', bookId: 303 },
+  { at: logStamp(20), name: '手动拉取全部', added: 0, ok: true, note: '无新内容' },
+  { at: '14:50', name: '历史旧格式条目', added: 2, ok: true },
   { at: '13:04', name: '失效测试源', added: 0, ok: false, error: 'HTTP 404 Not Found' }
 ]
 const syncLogListeners: (() => void)[] = []
+
+/** n 天前（负数=未来防呆取 0）的本地时间戳 YYYY-MM-DDTHH:mm */
+function logStamp(daysAgo: number): string {
+  const p = (x: number): string => String(x).padStart(2, '0')
+  const d = new Date(Date.now() - Math.max(0, daysAgo) * 86400000)
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 /* 模拟小说书（id=301）：12 章，第 6 章与第 5 章内容相同（查重用例） */
 interface MockChapter {
@@ -118,9 +129,8 @@ function emitNovel(): void {
   let e = pullLogs.find((x) => x.kind === 'novel' && x.bookId === s.bookId && (x.running || x.paused))
   if (live) {
     if (!e) {
-      const d0 = new Date()
       e = {
-        at: `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`,
+        at: logStamp(0),
         name: '墨与纸(模拟·在线抓取)',
         added: 0,
         ok: true
@@ -274,8 +284,8 @@ async function mockUpdateAllNovels(): Promise<{ checked: number; updatedBooks: n
   await new Promise((r) => setTimeout(r, 1800))
   const d = new Date()
   const pad = (x: number): string => String(x).padStart(2, '0')
-  const at = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-  lastSync = at
+  const at = logStamp(0)
+  lastSync = `${pad(d.getHours())}:${pad(d.getMinutes())}`
   const added = online.length > 0 ? 3 : 0
   for (const b of online.slice(0, 2)) {
     pullLogs.unshift({
