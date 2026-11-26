@@ -138,6 +138,36 @@ export function parseTocHtml(html: string, baseUrl: string): TocParseResult {
     }
   }
 
+  // 封面兜底：不少站点（如速读谷）目录页没有 og 元数据，封面是页面第一张普通 <img>
+  // 识别特征：src 路径含 cover，或（alt 非空且不像站点图标/广告的）第一张书封图。
+  if (!coverUrl) {
+    const IMG_COVER_PATH_RE = /\/cover|\/covers?\//i
+    const IMG_JUNK_RE = /logo|icon|avatar|banner|ads?\/|common\/|static\/(ico|icon)|\.gif($|\?)/i
+    const imgs = Array.from(document.querySelectorAll('img'))
+    const candidate =
+      imgs.find((im) => {
+        const src = im.getAttribute('src') ?? ''
+        return !!src && IMG_COVER_PATH_RE.test(src) && !IMG_JUNK_RE.test(src)
+      }) ??
+      imgs.find((im) => {
+        const src = im.getAttribute('src') ?? ''
+        const alt = cleanText(im.getAttribute('alt') ?? '')
+        return (
+          alt.length >= 2 && alt.length <= 30 &&
+          /\.(jpe?g|png|webp)($|\?)/i.test(src) && !IMG_JUNK_RE.test(src)
+        )
+      })
+    if (candidate) {
+      const src = candidate.getAttribute('src') ?? ''
+      try {
+        const cu = new URL(src, baseUrl)
+        if (cu.protocol === 'https:') coverUrl = cu.href
+      } catch {
+        /* 相对地址无法解析 → 忽略 */
+      }
+    }
+  }
+
   // 书名/作者：优先 h1（目录页通常有书名标题）；否则 title 分段取「最长且不像站名」的段
   let bookTitle = ''
   let author = ''
